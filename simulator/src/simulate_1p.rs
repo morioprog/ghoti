@@ -13,52 +13,46 @@ use puyoai::{
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use super::{convert::convert_kumipuyo_seq, haipuyo_detector::haipuyo_detector::*};
+use super::{convert::convert_kumipuyo_seq, haipuyo_detector::*};
 
 pub fn simulate_1p(
     logger: &mut Box<dyn Logger>,
     ai: &Box<dyn AI>,
     visible_tumos: usize,
     max_tumos: usize,
-    haipuyo_margin: Option<usize>, // Noneならランダムに、Someならその番号から順番に使う
+    haipuyo_margin: Option<usize>, // Noneならランダムに、Someならその番号の配ぷよを使う
     required_chain_score: Option<usize>, // この得点以上の連鎖が打たれたら終了
 ) -> Result<SimulateResult1P, std::io::Error> {
     logger.print(format!("> AI: {} ({:3}手読み)\n", ai.name(), visible_tumos))?;
 
     // TODO: フレームを更新する
-    let mut player_state = {
-        let cf = CoreField::new();
-        PlayerState::new(0, cf, vec![], 0, 0, 0, 0)
-    };
-    let mut seq = match haipuyo_margin {
+    let seq = match haipuyo_margin {
         None => HaipuyoDetector::random_haipuyo(),
         Some(margin) => HaipuyoDetector::retrieve_haipuyo(margin % TUMO_PATTERN),
     };
-    let seq_copy = seq.clone();
+    let mut player_state = PlayerState::initial_state(vec![], Some(seq.clone()));
 
     let mut ai_decisions: Vec<AIDecision> = vec![];
     let mut decisions: Vec<Decision> = vec![];
     let mut score = 0;
 
-    for tumo_index in 0..max_tumos {
+    for tumo_index in 1..=max_tumos {
         // AI に考えさせる
-        player_state.seq = seq.get(0..visible_tumos).unwrap().to_vec();
+        player_state.set_seq(visible_tumos);
         let ai_decision = ai.think(&player_state, None);
         ai_decisions.push(ai_decision.clone());
         decisions.push(ai_decision.decisions[0].clone());
 
         // 実際にぷよを落とす
-        player_state
-            .field
-            .drop_kumipuyo(&ai_decision.decisions[0], &seq[0]);
+        player_state.drop_kumipuyo(&ai_decision.decisions[0]);
         let rensa_result = player_state.field.simulate();
         score += rensa_result.score;
 
         logger.print(format!(
             "{:3}. {}{} ({}, {}) [{:4} ms] {:7} (+{:6}) | {}\n",
-            tumo_index + 1,
-            seq[0].axis().as_str(),
-            seq[0].child().as_str(),
+            tumo_index,
+            player_state.seq[0].axis().as_str(),
+            player_state.seq[0].child().as_str(),
             ai_decision.decisions[0].axis_x(),
             ai_decision.decisions[0].rot(),
             ai_decision.elapsed.as_millis(),
@@ -77,10 +71,10 @@ pub fn simulate_1p(
             break;
         }
 
-        seq.rotate_left(1);
+        player_state.tumo_index += 1;
     }
 
-    let ret = SimulateResult1P::new(score, visible_tumos, &seq_copy, &decisions, &ai_decisions);
+    let ret = SimulateResult1P::new(score, visible_tumos, &seq, &decisions, &ai_decisions);
     logger.print(ret.url.clone())?;
 
     Ok(ret)
