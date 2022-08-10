@@ -8,7 +8,6 @@ use chrono::Utc;
 use super::Logger;
 
 pub struct FileLogger {
-    file_path: String,
     buf_writer: BufWriter<File>,
 }
 
@@ -21,10 +20,7 @@ impl Logger for FileLogger {
         let file_path = format!("{}/{}.log", log_dir, log_name);
         let buf_writer = BufWriter::new(File::create(&file_path)?);
 
-        Ok(FileLogger {
-            file_path,
-            buf_writer,
-        })
+        Ok(FileLogger { buf_writer })
     }
 
     fn print(&mut self, log: String) -> Result<(), std::io::Error> {
