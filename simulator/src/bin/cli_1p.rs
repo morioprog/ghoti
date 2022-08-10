@@ -1,5 +1,5 @@
 use clap::Parser;
-use cpu::bot::{RandomAI, AI};
+use cpu::bot::{BeamSearchAI, RandomAI, AI};
 use logger::*;
 use simulator::simulate_1p;
 
@@ -12,7 +12,7 @@ use simulator::simulate_1p;
 )]
 struct Opts {
     /// AI の名前（`ai.name()`）
-    #[clap(long, default_value = "RandomAI")]
+    #[clap(long, default_value = "BeamSearchAI")]
     ai: String,
 
     /// 最大手数
@@ -43,7 +43,7 @@ struct Opts {
 fn main() -> Result<(), std::io::Error> {
     let opts = Opts::parse();
 
-    let ais: Vec<Box<dyn AI>> = vec![Box::new(RandomAI::new())];
+    let ais: Vec<Box<dyn AI>> = vec![Box::new(BeamSearchAI::new()), Box::new(RandomAI::new())];
     let ai = ais
         .iter()
         .find(|&ai| ai.name() == opts.ai)

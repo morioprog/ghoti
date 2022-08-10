@@ -39,7 +39,7 @@ pub fn simulate_1p(
     for tumo_index in 1..=max_tumos {
         // AI に考えさせる
         player_state.set_seq(visible_tumos);
-        let ai_decision = ai.think(&player_state, None);
+        let ai_decision = ai.think(player_state.clone(), None);
         ai_decisions.push(ai_decision.clone());
         decisions.push(ai_decision.decisions[0].clone());
 

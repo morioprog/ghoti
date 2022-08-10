@@ -216,7 +216,10 @@ pub fn simulate_2p(
             }
 
             // AIで思考する
-            let ai_decision = ai.think(&player_state_myself, Some(&player_state_opponent));
+            let ai_decision = ai.think(
+                player_state_myself.clone(),
+                Some(player_state_opponent.clone()),
+            );
             let decision = ai_decision.decisions[0].clone();
             events.push(Event::new(
                 // そこに置くのに必要なフレーム数を加算

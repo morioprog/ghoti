@@ -1,5 +1,5 @@
 use clap::Parser;
-use cpu::bot::{RandomAI, AI};
+use cpu::bot::{BeamSearchAI, RandomAI, AI};
 use logger::*;
 use simulator::simulate_2p;
 
@@ -12,11 +12,11 @@ use simulator::simulate_2p;
 )]
 struct Opts {
     /// AI の名前（1P）
-    #[clap(long, default_value = "RandomAI")]
+    #[clap(long, default_value = "BeamSearchAI")]
     ai_1p: String,
 
     /// AI の名前（2P）
-    #[clap(long, default_value = "RandomAI")]
+    #[clap(long, default_value = "BeamSearchAI")]
     ai_2p: String,
 
     /// 何本先取か
@@ -24,7 +24,7 @@ struct Opts {
     win_goal: usize,
 
     /// AI に何手読みさせるか
-    #[clap(long, default_value = "10")]
+    #[clap(long, default_value = "2")]
     visible_tumos: usize,
 
     /// Pull Request の ID
@@ -39,7 +39,7 @@ struct Opts {
 fn main() -> Result<(), std::io::Error> {
     let opts = Opts::parse();
 
-    let ais: Vec<Box<dyn AI>> = vec![Box::new(RandomAI::new())];
+    let ais: Vec<Box<dyn AI>> = vec![Box::new(BeamSearchAI::new()), Box::new(RandomAI::new())];
     let ai_1p = ais
         .iter()
         .find(|&ai| ai.name() == opts.ai_1p)

@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 puyoai = { path = "../puyoai" }
 rand = "0.8.5"
+serde = { version = "1.0", features = ["derive"] }

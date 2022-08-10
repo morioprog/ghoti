@@ -18,8 +18,8 @@ impl AI for RandomAI {
 
     fn think(
         &self,
-        player_state_1p: &PlayerState,
-        _player_state_2p: Option<&PlayerState>,
+        player_state_1p: PlayerState,
+        _player_state_2p: Option<PlayerState>,
     ) -> AIDecision {
         let start = Instant::now();
         let controller = PuyoController::new();
