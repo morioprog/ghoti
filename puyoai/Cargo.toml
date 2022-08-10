@@ -7,3 +7,4 @@ edition = "2021"
 puyoai-core = { git = "https://github.com/morioprog/puyoai.rs", branch = "develop" }
 serde = { version = "1.0", features = ["derive"] }
 serde_with = "2.0.0"
+rand = "0.8.5"

@@ -1,8 +1,10 @@
 use puyoai_core::{
+    color::PuyoColor,
     decision::Decision,
     field::{self, CoreField},
     rensa_result::RensaResult,
 };
+use rand::seq::SliceRandom;
 
 use super::EsBitField;
 use crate::es_frame;
@@ -10,6 +12,7 @@ use crate::es_frame;
 pub trait EsCoreField {
     fn es_simulate(&mut self) -> RensaResult;
     fn es_frames_to_drop_next(&self, decision: &Decision) -> usize;
+    fn es_drop_ojama(&mut self, ojama: usize, seed: Option<u8>) -> usize;
 }
 
 impl EsCoreField for CoreField {
@@ -66,6 +69,62 @@ impl EsCoreField for CoreField {
         }
 
         drop_frames
+    }
+
+    /// 盤面におじゃまを落として、それにかかるフレーム数を返す
+    fn es_drop_ojama(&mut self, ojama: usize, seed: Option<u8>) -> usize {
+        if ojama == 0 {
+            return 0;
+        }
+
+        // 最大赤玉1つ（30個）
+        assert!(ojama <= 30);
+
+        // おじゃま数による硬直フレーム数
+        let ojama_freeze_frame = es_frame::FRAMES_GROUNDING_OJAMA_QUANTITY[ojama];
+        // おじゃまの落下に要するフレーム数
+        let mut ojama_drop_frame = 0;
+
+        // まず列を落とす
+        let row = ojama / field::WIDTH;
+        let ojama = ojama % field::WIDTH;
+        for x in 1..=field::WIDTH {
+            for _ in 0..row {
+                self.drop_puyo_on_with_max_height(x, PuyoColor::OJAMA, 14);
+
+                let height = self.height(x);
+                ojama_drop_frame = std::cmp::max(
+                    ojama_drop_frame,
+                    es_frame::FRAMES_GROUNDING_OJAMA_POSITION[height][x],
+                );
+            }
+        }
+
+        // 端数を落とす
+        if ojama > 0 {
+            let mut rng: rand::rngs::StdRng = rand::SeedableRng::from_seed(
+                [match seed {
+                    Some(seed) => seed,
+                    None => ojama as u8,
+                }; 32],
+            );
+            let idxs: Vec<usize> = (1..=field::WIDTH).collect();
+            let chose: Vec<_> = idxs.choose_multiple::<_>(&mut rng, ojama).collect();
+            for x in chose {
+                self.drop_puyo_on_with_max_height(*x, PuyoColor::OJAMA, 14);
+
+                let height = self.height(*x);
+                ojama_drop_frame = std::cmp::max(
+                    ojama_drop_frame,
+                    es_frame::FRAMES_GROUNDING_OJAMA_POSITION[height][*x],
+                );
+            }
+        }
+
+        // おじゃまが落ちた分、高さを再計算する
+        self.update_height();
+
+        ojama_freeze_frame + ojama_drop_frame
     }
 }
 
