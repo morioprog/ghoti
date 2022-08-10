@@ -1,5 +1,5 @@
 [workspace]
-members = ["puyoai", "cpu"]
+members = ["puyoai", "cpu", "logger"]
 
 [profile.release]
 lto = true
