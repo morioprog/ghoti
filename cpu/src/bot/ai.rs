@@ -7,7 +7,11 @@ pub trait AI {
     where
         Self: Sized;
     fn name(&self) -> &'static str;
-    fn think(&self, player_state_1p: &PlayerState, player_state_2p: &PlayerState) -> AIDecision;
+    fn think(
+        &self,
+        player_state_1p: &PlayerState,
+        player_state_2p: Option<&PlayerState>,
+    ) -> AIDecision;
 }
 
 #[derive(Clone)]
