@@ -1,0 +1,7 @@
+[package]
+name = "puyoai"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+puyoai-core = { git = "https://github.com/morioprog/puyoai.rs", branch = "develop" }
