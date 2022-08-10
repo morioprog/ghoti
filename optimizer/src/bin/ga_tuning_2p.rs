@@ -16,31 +16,23 @@ use logger::{Logger, NullLogger};
 use optimizer::Mutateable;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
-use simulator::{haipuyo_detector::TUMO_PATTERN, simulate_1p, simulate_1p::SimulateResult1P};
+use simulator::{haipuyo_detector::TUMO_PATTERN, simulate_2p, simulate_2p::SimulateResult2P};
 
 #[derive(Parser)]
 #[clap(
-    name = "Ghoti GA Optimizer (1P)",
+    name = "Ghoti GA Optimizer (2P)",
     author = "morioprog",
     version = "v0.0.1",
-    about = "遺伝的アルゴリズムを用いたパラメータチューニング（とこぷよ）"
+    about = "遺伝的アルゴリズムを用いたパラメータチューニング（2人対戦）"
 )]
 struct Opts {
-    /// 最大手数
+    /// 何本先取させるか
     #[clap(long, default_value = "50")]
-    max_tumos: usize,
+    win_goal: usize,
 
     /// AI に何手読みさせるか
-    #[clap(long, default_value = "3")]
-    visible_tumos: usize,
-
-    /// 何回とこぷよさせるか
     #[clap(long, default_value = "10")]
-    simulate_count: usize,
-
-    /// この得点以上の連鎖が打たれたら終了
-    #[clap(long, default_value = "10000")]
-    required_chain_score: usize,
+    visible_tumos: usize,
 
     /// 個体数
     #[clap(long, default_value = "20")]
@@ -51,7 +43,7 @@ struct Opts {
     elite_size: usize,
 
     /// 何スレッドでシミュレーションするか
-    #[clap(long, default_value = "1")]
+    #[clap(long, default_value = "12")]
     parallel: usize,
 
     /// ビームサーチの深さ
@@ -63,7 +55,7 @@ struct Opts {
     beam_width: usize,
 
     /// ビームサーチにおけるモンテカルロ法の回数
-    #[clap(long, default_value = "10")]
+    #[clap(long, default_value = "1")]
     beam_parallel: usize,
 }
 
@@ -71,17 +63,12 @@ fn main() -> Result<(), std::io::Error> {
     let opts = Opts::parse();
     assert!(opts.elite_size < opts.population_size);
 
-    let mut population = match std::fs::File::open("optimizer/logs/ga_tuning_1p/pop.json") {
+    let mut population = match std::fs::File::open("optimizer/logs/ga_tuning_2p/pop.json") {
         Ok(file) => serde_json::from_reader(file).unwrap_or_else(|e| {
             eprintln!("pop.json contained invalid data: {}", e);
             new_population(opts.population_size)
         }),
         Err(_) => new_population::<Evaluator>(opts.population_size),
-    };
-
-    // とこぷよのスコアを計算
-    let calc_score = |sim_res: &SimulateResult1P| {
-        ((sim_res.score as f64).powf(1.1f64)) as usize / sim_res.json_decisions.len()
     };
 
     // マルチスレッドでシミュレーション
@@ -91,8 +78,8 @@ fn main() -> Result<(), std::io::Error> {
         let matchups = matchups.clone();
         let send = send.clone();
         std::thread::spawn(move || loop {
-            // (AIのindex, AIのEvaluator, 何番の配ぷよから使うか)
-            let (ai_index, ai_eval, haipuyo_margin) = {
+            // (1PのAIのindex, 1PのAIのEvaluator, 2PのAIのindex, 2PのAIのEvaluator, 配ぷよのマージン)
+            let (p1, p1_e, p2, p2_e, haipuyo_margin) = {
                 let (active, ref mut queue) = *matchups.lock().unwrap();
                 if !active {
                     break;
@@ -104,40 +91,28 @@ fn main() -> Result<(), std::io::Error> {
             };
 
             let mut logger: Box<dyn Logger> = Box::new(NullLogger::new("", None).unwrap());
-            let ai: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(
-                ai_eval,
+            let ai_1p: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(
+                p1_e,
                 opts.beam_depth,
                 opts.beam_width,
                 opts.beam_parallel,
             ));
+            let ai_2p: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(
+                p2_e,
+                opts.beam_depth,
+                opts.beam_width,
+                opts.beam_parallel,
+            ));
+            let simulate_result_2p = simulate_2p(
+                &mut logger,
+                &ai_1p,
+                &ai_2p,
+                opts.win_goal,
+                opts.visible_tumos,
+                Some(haipuyo_margin),
+            );
 
-            let mut res = 0;
-            let mut best: Option<SimulateResult1P> = None;
-            for i in 0..opts.simulate_count {
-                let simulate_result_1p = simulate_1p(
-                    &mut logger,
-                    &ai,
-                    opts.visible_tumos,
-                    opts.max_tumos,
-                    Some((haipuyo_margin + i) % TUMO_PATTERN),
-                    Some(opts.required_chain_score),
-                )
-                .unwrap();
-
-                let score = calc_score(&simulate_result_1p);
-                res += score;
-
-                if let Some(sim) = best.clone() {
-                    if score > calc_score(&sim) {
-                        best = Some(simulate_result_1p);
-                    }
-                } else {
-                    best = Some(simulate_result_1p);
-                }
-            }
-
-            send.send(Some((ai_index, res / opts.simulate_count, best)))
-                .ok();
+            send.send(Some((p1, p2, simulate_result_2p))).ok();
         });
     }
 
@@ -146,19 +121,29 @@ fn main() -> Result<(), std::io::Error> {
 
         let start = Instant::now();
 
-        // simulate_results[i] := 個体 i のとこぷよの結果
-        let mut simulate_results: Vec<Option<SimulateResult1P>> = vec![None; opts.population_size];
+        // simulate_results[i * POPULATION_SIZE + j] := 個体 i と個体 j の対戦の棋譜 (i < j)
+        let mut simulate_results: Vec<Option<SimulateResult2P>> = vec![];
+        for _i in 0..opts.population_size {
+            for _j in 0..opts.population_size {
+                simulate_results.push(None);
+            }
+        }
 
-        let haipuyo_margin =
-            ((population.generation / opts.simulate_count) * opts.simulate_count) % TUMO_PATTERN;
+        let haipuyo_margin = ((population.generation / 10) * 200) % TUMO_PATTERN;
         let mut count = 0;
         {
             let mut matchups = matchups.lock().unwrap();
             for i in 0..opts.population_size {
-                matchups
-                    .1
-                    .push_back((i, population.members[i].clone(), haipuyo_margin));
-                count += 1;
+                for j in (i + 1)..opts.population_size {
+                    matchups.1.push_back((
+                        i,
+                        population.members[i].clone(),
+                        j,
+                        population.members[j].clone(),
+                        haipuyo_margin,
+                    ));
+                    count += 1;
+                }
             }
         }
 
@@ -173,9 +158,11 @@ fn main() -> Result<(), std::io::Error> {
             results.push((i, 0_i32));
         }
         for i in 0..count {
-            if let Some((ai_index, res, sim_res)) = game_results.recv().unwrap() {
-                results[ai_index].1 += res as i32;
-                simulate_results[ai_index] = sim_res;
+            if let Some((p1, p2, simulate_result_2p)) = game_results.recv().unwrap() {
+                let simulate_result_2p = simulate_result_2p?;
+                simulate_results[p1 * opts.population_size + p2] = Some(simulate_result_2p.clone());
+                results[p1].1 += simulate_result_2p.win_count_1p as i32;
+                results[p2].1 += simulate_result_2p.win_count_2p as i32;
             }
             print!("{} ", i + 1);
             stdout().flush().unwrap();
@@ -187,11 +174,10 @@ fn main() -> Result<(), std::io::Error> {
         for i in 0..results.len() {
             let &(num, score) = &results[i];
             println!(
-                "  {:>2}. {:<10}: {:>5} (best: {:>5})",
+                "  {:>2}. {:<10}: {:>5} wins",
                 i + 1,
                 population.members[num].short_name(),
-                score,
-                calc_score(&simulate_results[num].clone().unwrap())
+                score
             );
         }
 
@@ -225,12 +211,13 @@ fn main() -> Result<(), std::io::Error> {
 
         // `pop.json` に今の世代のやつを記録
         serde_json::to_writer(
-            std::fs::File::create("optimizer/logs/ga_tuning_1p/pop.json").unwrap(),
+            std::fs::File::create("optimizer/logs/ga_tuning_2p/pop.json").unwrap(),
             &new_population,
-        )?;
+        )
+        .unwrap();
 
         match std::fs::File::create(format!(
-            "optimizer/logs/ga_tuning_1p/best/pop_{}.json",
+            "optimizer/logs/ga_tuning_2p/best/pop_{}.json",
             population.generation
         )) {
             Ok(f) => serde_json::to_writer(std::io::BufWriter::new(f), &new_population.members[0])
@@ -238,11 +225,18 @@ fn main() -> Result<(), std::io::Error> {
             Err(e) => eprintln!("Error saving best of generation: {}", e),
         }
 
-        let best_id = results[0].0;
-        let best_eval = population.members[best_id].clone();
+        // 上位2個体のindex (`best_ai_1` < `best_ai_2`)
+        let best_ai_1 = results[0].0;
+        let best_ai_2 = results[1].0;
+        let (best_ai_1, best_ai_2) = (best_ai_1.min(best_ai_2), best_ai_1.max(best_ai_2));
+        let best_ai_1_eval = population.members[best_ai_1].clone();
+        let best_ai_2_eval = population.members[best_ai_2].clone();
+
         let file_dir = format!(
-            "kifus/simulator_1p/ga_tuning_1p/ga_{}",
-            best_eval.short_name()
+            "kifus/simulator_2p/ga_tuning_2p/{}_{}_vs_{}",
+            population.generation,
+            best_ai_1_eval.short_name(),
+            best_ai_2_eval.short_name()
         );
         create_dir_all(&file_dir)?;
 
@@ -250,10 +244,43 @@ fn main() -> Result<(), std::io::Error> {
         match std::fs::File::create(format!("{}/{}.json", &file_dir, &time_text)) {
             Ok(f) => serde_json::to_writer(
                 std::io::BufWriter::new(f),
-                &simulate_results[best_id].as_ref().unwrap(),
+                &simulate_results[best_ai_1 * opts.population_size + best_ai_2]
+                    .clone()
+                    .unwrap(),
             )
             .unwrap_or_else(|e| eprintln!("Error saving best of generation: {}", e)),
             Err(e) => eprintln!("Error saving best kifu of generation: {}", e),
+        }
+
+        // Baselineと `opts.win_goal` 先してみる
+        if population.members[results[0].0].sub_name.is_some() {
+            let mut logger: Box<dyn Logger> = Box::new(NullLogger::new("", None).unwrap());
+            let ai_strongest: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(
+                population.members[results[0].0].clone(),
+                opts.beam_depth,
+                opts.beam_width,
+                opts.beam_parallel,
+            ));
+            let ai_baseline: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(
+                Evaluator::default(),
+                opts.beam_depth,
+                opts.beam_width,
+                opts.beam_parallel,
+            ));
+            let simulate_result_with_baseline = simulate_2p(
+                &mut logger,
+                &ai_strongest,
+                &ai_baseline,
+                opts.win_goal,
+                opts.visible_tumos,
+                Some(0),
+            )?;
+            println!(
+                "> {:>8} v.s. Baseline => {:3} - {:3}",
+                population.members[results[0].0].short_name(),
+                simulate_result_with_baseline.win_count_1p,
+                simulate_result_with_baseline.win_count_2p
+            );
         }
 
         let sec = start.elapsed().as_secs();
@@ -263,11 +290,11 @@ fn main() -> Result<(), std::io::Error> {
         println!();
 
         // 手動でこのファイルを作成するまでループする
-        if std::fs::remove_file("optimizer/logs/ga_tuning_1p/end-request").is_ok() {
+        if std::fs::remove_file("optimizer/logs/ga_tuning_2p/end-request").is_ok() {
             break;
         }
         if std::fs::remove_file(format!(
-            "optimizer/logs/ga_tuning_1p/end-request-{}",
+            "optimizer/logs/ga_tuning_2p/end-request-{}",
             population.generation
         ))
         .is_ok()
