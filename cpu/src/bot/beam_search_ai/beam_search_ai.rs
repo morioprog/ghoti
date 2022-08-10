@@ -9,13 +9,6 @@ use puyoai::{
 
 use crate::{bot::*, evaluator::Evaluator};
 
-/// ビームサーチの深さ
-const DEPTH: usize = 30;
-/// ビーム幅
-const WIDTH: usize = 100;
-/// モンテカルロを何並列でするか
-const PARALLEL: usize = 20;
-
 fn generate_next_states(
     cur_state: &State,
     next_states: &mut Vec<State>,
@@ -53,6 +46,8 @@ fn generate_next_states(
 }
 
 fn think_single_thread<F>(
+    depth: usize,
+    width: usize,
     player_state_1p: &PlayerState,
     player_state_2p: &Option<PlayerState>,
     fire_condition: F,
@@ -70,18 +65,18 @@ where
     let visible_tumos = seq.len();
     let seq = {
         let mut seq = seq.clone();
-        if visible_tumos < DEPTH {
+        if visible_tumos < depth {
             seq.append(&mut generate_random_puyocolor_sequence(
-                DEPTH - visible_tumos,
+                depth - visible_tumos,
             ));
         }
         seq
     };
 
     let mut state_v: Vec<State> = vec![State::from_field(cf)];
-    let mut fired_v: Vec<State> = Vec::with_capacity(WIDTH * 22 * DEPTH);
+    let mut fired_v: Vec<State> = Vec::with_capacity(width * 22 * depth);
 
-    for depth in 0..DEPTH {
+    for depth in 0..depth {
         // ビーム内の初手がすべて同じなら終わり
         if depth > 0 && {
             let mut fin = true;
@@ -97,7 +92,7 @@ where
         }
 
         // 次の状態を列挙
-        let mut next_state_v: Vec<State> = Vec::with_capacity(WIDTH * 22);
+        let mut next_state_v: Vec<State> = Vec::with_capacity(width * 22);
         for cur_state in &state_v {
             generate_next_states(
                 &cur_state,
@@ -115,8 +110,8 @@ where
         // 良い方からビーム幅分だけ残す
         next_state_v
             .sort_by(|a: &State, b: &State| (-a.eval_score).partial_cmp(&-b.eval_score).unwrap());
-        if next_state_v.len() > WIDTH {
-            next_state_v.resize(WIDTH, State::empty());
+        if next_state_v.len() > width {
+            next_state_v.resize(width, State::empty());
         }
         state_v = next_state_v;
     }
@@ -177,11 +172,27 @@ where
 
 pub struct BeamSearchAI {
     evaluator: Evaluator,
+    /// ビームサーチの深さ
+    depth: usize,
+    /// ビーム幅
+    width: usize,
+    /// モンテカルロを何並列でするか
+    parallel: usize,
 }
 
 impl BeamSearchAI {
-    pub fn with_evaluator(evaluator: Evaluator) -> Self {
-        BeamSearchAI { evaluator }
+    pub fn new_customize(
+        evaluator: Evaluator,
+        depth: usize,
+        width: usize,
+        parallel: usize,
+    ) -> Self {
+        BeamSearchAI {
+            evaluator,
+            depth,
+            width,
+            parallel,
+        }
     }
 }
 
@@ -189,6 +200,9 @@ impl AI for BeamSearchAI {
     fn new() -> Self {
         BeamSearchAI {
             evaluator: Evaluator::default(),
+            depth: 30,
+            width: 100,
+            parallel: 20,
         }
     }
 
@@ -221,13 +235,15 @@ impl AI for BeamSearchAI {
         let (tx, rx): (mpsc::Sender<AIDecision>, mpsc::Receiver<AIDecision>) = mpsc::channel();
 
         // ツモが十分に渡されてたら、モンテカルロをする必要がない
-        let parallel = if player_state_1p.seq.len() < DEPTH {
-            PARALLEL
+        let parallel = if player_state_1p.seq.len() < self.depth {
+            self.parallel
         } else {
             1
         };
 
         for _ in 0..parallel {
+            let depth_c = self.depth;
+            let width_c = self.width;
             let tx_c = tx.clone();
             let player_state_1p_c = player_state_1p.clone();
             let player_state_2p_c = player_state_2p.clone();
@@ -236,6 +252,8 @@ impl AI for BeamSearchAI {
 
             thread::spawn(move || {
                 tx_c.send(think_single_thread(
+                    depth_c,
+                    width_c,
                     &player_state_1p_c,
                     &player_state_2p_c,
                     fire_condition_c,
