@@ -1,12 +1,12 @@
 [package]
-name = "optimizer"
+name = "ghoti-optimizer"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cpu = { path = "../cpu" }
-simulator = { path = "../simulator" }
-logger = { path = "../logger" }
+cpu = { path = "../cpu", package = "ghoti-cpu" }
+simulator = { path = "../simulator", package = "ghoti-simulator" }
+logger = { path = "../logger", package = "ghoti-logger" }
 rand = "0.8.5"
 chrono = "0.4.19"
 serde = { version = "1.0", features = ["derive"] }

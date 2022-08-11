@@ -1,9 +1,9 @@
 [package]
-name = "cpu"
+name = "ghoti-cpu"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-puyoai = { path = "../puyoai" }
+puyoai = { path = "../puyoai", package = "ghoti-puyoai" }
 rand = "0.8.5"
 serde = { version = "1.0", features = ["derive"] }

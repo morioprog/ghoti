@@ -12,8 +12,8 @@ use cpu::{
     bot::{BeamSearchAI, AI},
     evaluator::Evaluator,
 };
+use ghoti_optimizer::Mutateable;
 use logger::{Logger, NullLogger};
-use optimizer::Mutateable;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use simulator::{haipuyo_detector::TUMO_PATTERN, simulate_2p, simulate_2p::SimulateResult2P};

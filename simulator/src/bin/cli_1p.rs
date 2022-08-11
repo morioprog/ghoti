@@ -1,7 +1,7 @@
 use clap::Parser;
 use cpu::bot::{BeamSearchAI, RandomAI, AI};
+use ghoti_simulator::simulate_1p;
 use logger::*;
-use simulator::simulate_1p;
 
 #[derive(Parser)]
 #[clap(

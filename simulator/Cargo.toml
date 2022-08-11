@@ -1,12 +1,12 @@
 [package]
-name = "simulator"
+name = "ghoti-simulator"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-puyoai = { path = "../puyoai" }
-cpu = { path = "../cpu" }
-logger = { path = "../logger" }
+puyoai = { path = "../puyoai", package = "ghoti-puyoai" }
+cpu = { path = "../cpu", package = "ghoti-cpu" }
+logger = { path = "../logger", package = "ghoti-logger" }
 rand = "0.8.5"
 chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "3.2.7", features = ["derive"] }
