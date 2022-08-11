@@ -9,168 +9,8 @@ use puyoai::{
 
 use crate::{bot::*, evaluator::Evaluator};
 
-fn generate_next_states(
-    cur_state: &State,
-    next_states: &mut Vec<State>,
-    fired: &mut Vec<State>,
-    kumipuyo: &Kumipuyo,
-    append_fired: bool,
-    evaluator: &Evaluator,
-) {
-    let decisions = cur_state.decisions.clone();
-    let seq = vec![kumipuyo.clone()];
-
-    Plan::iterate_available_plans(&cur_state.field, &seq, 1, &mut |plan: &Plan| {
-        let ds = {
-            let mut ds = decisions.clone();
-            ds.append(&mut vec![plan.first_decision().clone()]);
-            ds
-        };
-
-        if append_fired && plan.chain() > 0 {
-            fired.push(State::from_plan_for_fire(
-                plan,
-                ds.clone(),
-                plan.score() as i32,
-                cur_state.frame_controll,
-            ))
-        }
-
-        next_states.push(State::from_plan(
-            plan,
-            ds.clone(),
-            evaluator.evaluate(plan),
-            cur_state.frame_controll,
-        ));
-    });
-}
-
-fn think_single_thread<F>(
-    depth: usize,
-    width: usize,
-    player_state_1p: &PlayerState,
-    player_state_2p: &Option<PlayerState>,
-    fire_condition: F,
-    evaluator: &Evaluator,
-) -> AIDecision
-where
-    F: Fn(&State, &Option<PlayerState>) -> bool,
-{
-    let start = Instant::now();
-
-    let cf = &player_state_1p.field;
-    let seq = &player_state_1p.seq;
-
-    // ツモを伸ばす（モンテカルロ）
-    let visible_tumos = seq.len();
-    let seq = {
-        let mut seq = seq.clone();
-        if visible_tumos < depth {
-            seq.append(&mut generate_random_puyocolor_sequence(
-                depth - visible_tumos,
-            ));
-        }
-        seq
-    };
-
-    let mut state_v: Vec<State> = vec![State::from_field(cf)];
-    let mut fired_v: Vec<State> = Vec::with_capacity(width * 22 * depth);
-
-    for depth in 0..depth {
-        // ビーム内の初手がすべて同じなら終わり
-        if depth > 0 && {
-            let mut fin = true;
-            for i in 1..state_v.len() {
-                if state_v[0].first_decision() != state_v[i].first_decision() {
-                    fin = false;
-                    break;
-                }
-            }
-            fin
-        } {
-            break;
-        }
-
-        // 次の状態を列挙
-        let mut next_state_v: Vec<State> = Vec::with_capacity(width * 22);
-        for cur_state in &state_v {
-            generate_next_states(
-                &cur_state,
-                &mut next_state_v,
-                &mut fired_v,
-                &seq[depth],
-                depth < visible_tumos,
-                evaluator,
-            );
-        }
-        if next_state_v.is_empty() {
-            break;
-        }
-
-        // 良い方からビーム幅分だけ残す
-        next_state_v
-            .sort_by(|a: &State, b: &State| (-a.eval_score).partial_cmp(&-b.eval_score).unwrap());
-        if next_state_v.len() > width {
-            next_state_v.resize(width, State::empty());
-        }
-        state_v = next_state_v;
-    }
-
-    if !fired_v.is_empty() {
-        // NOTE: conditionを満たすものの中で、一番点数が高いものを選んでいる
-        let highest_idx = {
-            let mut idx = 0;
-            for i in 1..fired_v.len() {
-                if fire_condition(&fired_v[i], player_state_2p)
-                    && fired_v[i].eval_score > fired_v[idx].eval_score
-                {
-                    idx = i;
-                }
-            }
-            idx
-        };
-
-        // 発火した連鎖ならなんでも突っ込んでるので、この条件が必要
-        if fire_condition(&fired_v[highest_idx], player_state_2p) {
-            return AIDecision::new(
-                fired_v[highest_idx].decisions.clone(),
-                format!(
-                    "> fire score\n {:5}\n ({}, {})\n {:4} F -> {:4} F",
-                    fired_v[highest_idx].eval_score,
-                    fired_v[highest_idx].first_decision().unwrap().axis_x(),
-                    fired_v[highest_idx].first_decision().unwrap().rot(),
-                    fired_v[highest_idx].frame_controll,
-                    fired_v[highest_idx].frame_chain,
-                ),
-                start.elapsed(),
-            );
-        }
-    }
-
-    // どうしようもないので自殺
-    if state_v[0].first_decision().is_none() {
-        // TODO: 特に `state_v[0]` を再利用する必要はない
-        state_v[0].decisions.push(Decision::new(3, 0));
-        return AIDecision::new(
-            state_v[0].decisions.clone(),
-            format!("> muri...\n\n (3, 0)"),
-            start.elapsed(),
-        );
-    }
-
-    AIDecision::new(
-        state_v[0].decisions.clone(),
-        format!(
-            "> eval score\n {:5}\n ({}, {})",
-            state_v[0].eval_score,
-            state_v[0].first_decision().unwrap().axis_x(),
-            state_v[0].first_decision().unwrap().rot(),
-        ),
-        start.elapsed(),
-    )
-}
-
 pub struct BeamSearchAI {
+    /// 盤面の評価器
     evaluator: Evaluator,
     /// ビームサーチの深さ
     depth: usize,
@@ -217,7 +57,7 @@ impl AI for BeamSearchAI {
     ) -> AIDecision {
         let start = Instant::now();
 
-        // NOTE: このstateは、`State::from_plan_for_fire` で返されたもの
+        // NOTE: ここで渡される state は、`State::from_plan_for_fire` から返されたもの
         let fire_condition = move |state: &State, _player_state_2p: &Option<PlayerState>| -> bool {
             let plan = state.clone().plan.unwrap();
 
@@ -289,27 +129,20 @@ impl AI for BeamSearchAI {
             }
         }
 
-        let mut best_decision = Decision::new(3, 0);
-        for decision in Decision::all_valid_decisions() {
-            let x = decision.axis_x();
-            let r = decision.rot();
+        let best_decision = Decision::all_valid_decisions()
+            .iter()
+            .max_by(|d1, d2| scores[d1.axis_x()][d1.rot()].cmp(&scores[d2.axis_x()][d2.rot()]))
+            .unwrap();
 
-            let bx = best_decision.axis_x();
-            let br = best_decision.rot();
-
-            if scores[x][r] > scores[bx][br] {
-                best_decision = decision.clone();
-            }
-        }
-
-        for ai_decision in ai_decisions {
-            if ai_decision.decisions[0] == best_decision {
-                return AIDecision::new(
-                    ai_decision.decisions.clone(),
-                    ai_decision.log_output.clone(),
-                    start.elapsed(),
-                );
-            }
+        if let Some(ai_decision) = ai_decisions
+            .iter()
+            .find(|&ai_decision| &ai_decision.decisions[0] == best_decision)
+        {
+            return AIDecision::new(
+                ai_decision.decisions.clone(),
+                ai_decision.log_output.clone(),
+                start.elapsed(),
+            );
         }
 
         // 死ぬしかない状態でも "muri..." が入っているはずなので
@@ -341,11 +174,11 @@ impl State {
         }
     }
 
-    /// `frame_margin`: それまでの操作に必要なフレーム数の総和
     fn from_plan(
         plan: &Plan,
         decisions: Vec<Decision>,
         eval_score: i32,
+        // それまでの操作に必要なフレーム数の総和
         frame_margin: usize,
     ) -> Self {
         State {
@@ -359,12 +192,12 @@ impl State {
     }
 
     /// 発火時のState（多分別のstructに分けた方がいいけど、面倒なのでこのままで）
-    /// - `eval_score`: 発火した連鎖の点数
-    /// - `frame_controll`: 発火時のツモ以外の操作に必要なフレーム数の総和（本来の定義とは異なることに注意）
     fn from_plan_for_fire(
         plan: &Plan,
         decisions: Vec<Decision>,
+        // 発火した連鎖の点数
         eval_score: i32,
+        // 発火時のツモ以外の操作に必要なフレーム数の総和（本来の定義とは異なることに注意）
         frame_controll: usize,
     ) -> Self {
         State {
@@ -377,7 +210,7 @@ impl State {
         }
     }
 
-    // 初期化にしか使っていない
+    // NOTE: 初期化にしか使っていない
     fn from_field(field: &CoreField) -> Self {
         State {
             field: field.clone(),
@@ -392,4 +225,152 @@ impl State {
     fn first_decision(&self) -> Option<&Decision> {
         self.decisions.first()
     }
+}
+
+fn generate_next_states(
+    cur_state: &State,
+    next_states: &mut Vec<State>,
+    fired: &mut Vec<State>,
+    kumipuyo: &Kumipuyo,
+    append_fired: bool,
+    evaluator: &Evaluator,
+) {
+    let decisions = &cur_state.decisions;
+    let seq = vec![kumipuyo.clone()];
+
+    Plan::iterate_available_plans(&cur_state.field, &seq, 1, &mut |plan: &Plan| {
+        // TODO: どうにかできそう
+        let ds = {
+            let mut ds = decisions.clone();
+            ds.append(&mut vec![plan.first_decision().clone()]);
+            ds
+        };
+
+        if append_fired && plan.chain() > 0 {
+            fired.push(State::from_plan_for_fire(
+                plan,
+                ds.clone(),
+                plan.score() as i32,
+                cur_state.frame_controll,
+            ))
+        }
+
+        next_states.push(State::from_plan(
+            plan,
+            ds.clone(),
+            evaluator.evaluate(plan),
+            cur_state.frame_controll,
+        ));
+    });
+}
+
+fn think_single_thread<F>(
+    depth: usize,
+    width: usize,
+    player_state_1p: &PlayerState,
+    player_state_2p: &Option<PlayerState>,
+    fire_condition: F,
+    evaluator: &Evaluator,
+) -> AIDecision
+where
+    F: Fn(&State, &Option<PlayerState>) -> bool,
+{
+    let start = Instant::now();
+
+    let cf = &player_state_1p.field;
+    let seq = &player_state_1p.seq;
+
+    // ツモを伸ばす（モンテカルロ）
+    let visible_tumos = seq.len();
+    let seq: Vec<Kumipuyo> = seq
+        .iter()
+        .cloned()
+        .chain(generate_random_puyocolor_sequence(
+            if depth > visible_tumos {
+                depth - visible_tumos
+            } else {
+                0
+            },
+        ))
+        .collect();
+
+    let mut state_v: Vec<State> = vec![State::from_field(cf)];
+    let mut fired_v: Vec<State> =
+        Vec::with_capacity(width * Decision::all_valid_decisions().len() * depth);
+
+    for depth in 0..depth {
+        // ビーム内の初手がすべて同じなら終わり
+        if depth > 0
+            && state_v
+                .iter()
+                .all(|state| state.first_decision() == state_v[0].first_decision())
+        {
+            break;
+        }
+
+        // 次の状態を列挙
+        let mut next_state_v: Vec<State> =
+            Vec::with_capacity(width * Decision::all_valid_decisions().len());
+        for cur_state in &state_v {
+            generate_next_states(
+                &cur_state,
+                &mut next_state_v,
+                &mut fired_v,
+                &seq[depth],
+                depth < visible_tumos,
+                evaluator,
+            );
+        }
+        if next_state_v.is_empty() {
+            break;
+        }
+
+        // 良い方からビーム幅分だけ残す
+        next_state_v
+            .sort_by(|a: &State, b: &State| (-a.eval_score).partial_cmp(&-b.eval_score).unwrap());
+        if next_state_v.len() > width {
+            next_state_v.resize(width, State::empty());
+        }
+        state_v = next_state_v;
+    }
+
+    // 発火すべきものがあれば、その中で一番点数が高いものを選んでいる
+    if let Some(fire) = fired_v
+        .iter()
+        .filter(|f| fire_condition(f, player_state_2p))
+        .max_by(|f1, f2| f1.eval_score.cmp(&f2.eval_score))
+    {
+        return AIDecision::new(
+            fire.decisions.clone(),
+            format!(
+                "> fire score\n {:5}\n ({}, {})\n {:4} F -> {:4} F",
+                fire.eval_score,
+                fire.first_decision().unwrap().axis_x(),
+                fire.first_decision().unwrap().rot(),
+                fire.frame_controll,
+                fire.frame_chain,
+            ),
+            start.elapsed(),
+        );
+    }
+
+    if state_v[0].first_decision().is_some() {
+        return AIDecision::new(
+            state_v[0].decisions.clone(),
+            format!(
+                "> eval score\n {:5}\n ({}, {})",
+                state_v[0].eval_score,
+                state_v[0].first_decision().unwrap().axis_x(),
+                state_v[0].first_decision().unwrap().rot(),
+            ),
+            start.elapsed(),
+        );
+    }
+
+    // どうしようもないので自殺
+    return AIDecision::new(
+        vec![Decision::new(3, 0)],
+        format!("> muri...\n\n (3, 0)"),
+        start.elapsed(),
+    );
 }
