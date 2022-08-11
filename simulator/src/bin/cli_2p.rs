@@ -49,12 +49,13 @@ fn main() -> Result<(), std::io::Error> {
         .find(|&ai| ai.name() == opts.ai_2p)
         .expect(&format!("No AI found: {}", opts.ai_2p));
 
-    let mut logger: Box<dyn Logger> = match opts.pr_number {
-        None => Box::new(FileLogger::new(
+    let mut logger: Box<dyn Logger> = if opts.pr_number.map(|x| x > 0).unwrap_or(false) {
+        Box::new(NullLogger::new("", None)?)
+    } else {
+        Box::new(FileLogger::new(
             &format!("simulator/logs/cli_2p/{}_vs_{}", ai_1p.name(), ai_2p.name()),
             None,
-        )?),
-        Some(_) => Box::new(NullLogger::new("", None)?),
+        )?)
     };
 
     let simulate_result_2p = simulate_2p(
