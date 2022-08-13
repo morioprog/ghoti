@@ -137,6 +137,13 @@ impl PlayerState {
             self.seq = seq;
         };
     }
+    pub fn has_haipuyo(&self) -> bool {
+        self.haipuyo.is_some()
+    }
+    pub fn set_haipuyo(&mut self, haipuyo: Vec<Kumipuyo>) {
+        debug_assert!(!self.has_haipuyo());
+        self.haipuyo = Some(haipuyo);
+    }
     pub fn drop_kumipuyo(&mut self, decision: &Decision) {
         self.field.drop_kumipuyo(decision, &self.seq[0]);
     }
