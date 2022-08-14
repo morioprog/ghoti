@@ -86,9 +86,7 @@ impl HaipuyoDetector {
     pub fn random_haipuyo() -> Vec<Kumipuyo> {
         let key = rand::thread_rng().gen_range(0..TUMO_PATTERN);
 
-        let mut haipuyo = HaipuyoDetector::retrieve_haipuyo(key);
-        haipuyo.rotate_right(6);
-        haipuyo
+        HaipuyoDetector::retrieve_haipuyo(key)
     }
 }
 
@@ -107,7 +105,7 @@ mod tests {
             Kumipuyo::new(PuyoColor::BLUE, PuyoColor::BLUE),
             Kumipuyo::new(PuyoColor::BLUE, PuyoColor::BLUE),
             Kumipuyo::new(PuyoColor::RED, PuyoColor::BLUE),
-            Kumipuyo::new(PuyoColor::RED, PuyoColor::YELLOW), // ここから返される
+            Kumipuyo::new(PuyoColor::RED, PuyoColor::YELLOW),
             Kumipuyo::new(PuyoColor::BLUE, PuyoColor::YELLOW),
             Kumipuyo::new(PuyoColor::RED, PuyoColor::RED),
             Kumipuyo::new(PuyoColor::BLUE, PuyoColor::YELLOW),
@@ -120,7 +118,7 @@ mod tests {
         let haipuyo = HaipuyoDetector::search_haipuyo(&head.get(0..8).unwrap().to_vec());
         assert_eq!(haipuyo.len(), 128);
         for i in 0..head.len() {
-            assert_eq!(haipuyo[if i >= 6 { i - 6 } else { 122 + i }], head[i]);
+            assert_eq!(haipuyo[i], head[i]);
         }
     }
 }

@@ -47,7 +47,7 @@ if __name__ == '__main__':
             lack = lacking_color(tumo)
             norm = normalize(tumo, lack)
             hsh_head = tumo_hash(norm[:16])
-            hsh_full = full_tumo_hash(norm[12:] + norm[:12])
+            hsh_full = full_tumo_hash(norm)
             keys.append(hsh_head)
             tumos.append((hsh_head, hsh_full))
 
