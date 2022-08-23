@@ -61,8 +61,8 @@ pub struct PlayerState {
     pub fixed_ojama: usize,
     /// 予告おじゃまぷよ
     pub pending_ojama: usize,
-    /// 予告おじゃまぷよがいつ確定するか
-    pub ojama_committing_frame_id: usize,
+    /// 現在の連鎖数
+    pub current_chain: usize,
     /// ツモ番号
     pub tumo_index: usize,
     /// 配ぷよ全体
@@ -78,7 +78,7 @@ impl PlayerState {
         carry_over: usize,
         fixed_ojama: usize,
         pending_ojama: usize,
-        ojama_committing_frame_id: usize,
+        current_chain: usize,
         tumo_index: usize,
         haipuyo: Option<Vec<Kumipuyo>>,
     ) -> Self {
@@ -90,7 +90,7 @@ impl PlayerState {
             carry_over,
             fixed_ojama,
             pending_ojama,
-            ojama_committing_frame_id,
+            current_chain,
             tumo_index,
             haipuyo,
         }
@@ -104,7 +104,7 @@ impl PlayerState {
             carry_over: 0,
             fixed_ojama: 0,
             pending_ojama: 0,
-            ojama_committing_frame_id: 0,
+            current_chain: 0,
             tumo_index: 0,
             haipuyo,
         }
@@ -118,7 +118,7 @@ impl PlayerState {
             carry_over: 0,
             fixed_ojama: 0,
             pending_ojama: 0,
-            ojama_committing_frame_id: 0,
+            current_chain: 0,
             tumo_index: 0,
             haipuyo: None,
         }

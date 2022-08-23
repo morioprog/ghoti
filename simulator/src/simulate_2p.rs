@@ -14,7 +14,10 @@ use std::{
 use chrono::{DateTime, Utc};
 use cpu::bot::{PlayerState, AI};
 use logger::Logger;
-use puyoai::{decision::Decision, es_field::EsCoreField};
+use puyoai::{
+    decision::Decision, es_field::EsCoreField, es_frame, field::CoreField, field_bit::FieldBit,
+    rensa_tracker::RensaNonTracker,
+};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -110,22 +113,27 @@ pub fn simulate_2p(
                 };
             }
 
-            // 置く場所がすでに決まっている場合
+            // 置く場所がすでに決まっている or 連鎖中
             if let Some(decision) = event.decision {
-                // ぷよを置いて `PlayerState` を更新する
-                player_state_myself.drop_kumipuyo(&decision);
-                player_state_myself.tumo_index += 1;
-                player_state_myself.set_seq(visible_tumos);
-                player_state_myself.frame = event.frame;
+                // 連鎖中でないなら、ぷよを置いて `PlayerState` を更新する
+                if player_state_myself.current_chain == 0 {
+                    player_state_myself.drop_kumipuyo(&decision);
+                    player_state_myself.tumo_index += 1;
+                    player_state_myself.set_seq(visible_tumos);
+                    player_state_myself.frame = event.frame;
+                }
 
                 // ぷよを置いた後の盤面を push
                 push_json_event!(event.frame, event.player);
 
-                // 連鎖が発生したら、盤面・フレーム・おじゃまを連鎖後のものに更新
-                let rensa_result = player_state_myself.field.es_simulate();
-                if rensa_result.score != 0 {
-                    // おじゃまを一気に処理
-                    player_state_myself.carry_over += rensa_result.score;
+                // 連鎖が発生したら、盤面・フレーム・おじゃまを更新
+                let (chain_score, chain_frame) = vanish_single_chain(
+                    &mut player_state_myself.field,
+                    player_state_myself.current_chain + 1,
+                );
+                if chain_score != 0 {
+                    // おじゃまを 1 連鎖分処理
+                    player_state_myself.carry_over += chain_score;
                     let mut ojama = player_state_myself.carry_over / OJAMA_PUYO_RATE;
                     player_state_myself.carry_over %= OJAMA_PUYO_RATE;
 
@@ -144,30 +152,26 @@ pub fn simulate_2p(
                     // 余った分は相手に送る
                     if ojama > 0 {
                         player_state_opponent.pending_ojama += ojama;
-                        player_state_opponent.ojama_committing_frame_id =
-                            event.frame + rensa_result.frame;
                     }
 
-                    // 点数とフレームを更新
-                    player_state_myself.score += rensa_result.score;
-                    player_state_myself.frame += rensa_result.frame;
+                    // 自身の状態を更新
+                    player_state_myself.score += chain_score;
+                    player_state_myself.frame += chain_frame;
+                    player_state_myself.current_chain += 1;
 
                     events.push(Event::new(
                         player_state_myself.frame,
                         event.player,
-                        None,
+                        Some(decision),
                         false,
                     ));
 
                     continue;
                 }
-            } else if player_state_opponent.pending_ojama > 0 {
-                // 相手の予告ぷよを確定させる（自身の連鎖終了後にここに来るので）
-                debug_assert!(event.frame == player_state_opponent.ojama_committing_frame_id);
-                player_state_opponent.fixed_ojama += player_state_opponent.pending_ojama;
-                player_state_opponent.pending_ojama = 0;
-                player_state_opponent.ojama_committing_frame_id = 0;
             }
+
+            // 連鎖が発生していないので 0 に戻す
+            player_state_myself.current_chain = 0;
 
             // おじゃまを降らせる
             if !event.force_think && player_state_myself.fixed_ojama > 0 {
@@ -213,6 +217,12 @@ pub fn simulate_2p(
             if player_state_myself.field.is_dead() {
                 winner_player = Some(event.player.opponent());
                 break 'battle;
+            }
+
+            // 思考する前に相手の予告ぷよを確定させる
+            if player_state_opponent.pending_ojama > 0 {
+                player_state_opponent.fixed_ojama += player_state_opponent.pending_ojama;
+                player_state_opponent.pending_ojama = 0;
             }
 
             // AIで思考する
@@ -271,12 +281,13 @@ pub fn simulate_2p(
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-struct JsonState {
-    tumo_index: usize,
-    field: String, // pfen-like
-    score: usize,
-    ojama_fixed: usize,   // 確定おじゃまぷよ
-    ojama_ongoing: usize, // 予告おじゃまぷよ
+pub struct JsonState {
+    pub tumo_index: usize,
+    pub field: String, // pfen-like
+    pub score: usize,
+    pub ojama_fixed: usize,   // 確定おじゃまぷよ
+    pub ojama_ongoing: usize, // 予告おじゃまぷよ
+    pub current_chain: usize, // 現在の連鎖数
 }
 
 impl From<PlayerState> for JsonState {
@@ -287,31 +298,32 @@ impl From<PlayerState> for JsonState {
             score: player_state.score,
             ojama_fixed: player_state.fixed_ojama,
             ojama_ongoing: player_state.pending_ojama,
+            current_chain: player_state.current_chain,
         }
     }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-struct JsonEvent {
-    frame: usize,
-    json_state_1p: JsonState,
-    json_state_2p: JsonState,
+pub struct JsonEvent {
+    pub frame: usize,
+    pub json_state_1p: JsonState,
+    pub json_state_2p: JsonState,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-struct JsonMatch {
-    won_1p: bool,
-    tumos: Vec<String>,
-    json_events: Vec<JsonEvent>,
+pub struct JsonMatch {
+    pub won_1p: bool,
+    pub tumos: Vec<String>,
+    pub json_events: Vec<JsonEvent>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SimulateResult2P {
-    date: DateTime<Utc>,
+    pub date: DateTime<Utc>,
     pub win_count_1p: usize,
     pub win_count_2p: usize,
-    visible_tumos: usize,
-    json_matches: Vec<JsonMatch>,
+    pub visible_tumos: usize,
+    pub json_matches: Vec<JsonMatch>,
 }
 
 impl SimulateResult2P {
@@ -409,3 +421,68 @@ impl PartialEq for Event {
     }
 }
 impl Eq for Event {}
+
+/// 1 連鎖分進めて (点数, フレーム数) を返す
+fn vanish_single_chain(cf: &mut CoreField, current_chain: usize) -> (usize, usize) {
+    let escaped = cf.field_mut().escape_invisible();
+    let mut erased = unsafe { FieldBit::uninitialized() };
+    let chain_score = cf.field().vanish(
+        current_chain,
+        &mut erased,
+        &mut puyoai::rensa_tracker::RensaNonTracker::new(),
+    );
+
+    // 連鎖が発生しなかった
+    if chain_score == 0 {
+        cf.field_mut().recover_invisible(&escaped);
+        return (0, 0);
+    }
+
+    let max_drops = unsafe {
+        cf.field_mut()
+            .drop_after_vanish(erased, &mut RensaNonTracker::new())
+    };
+    cf.update_height();
+    let chain_frame = es_frame::FRAMES_CHAIN[max_drops];
+
+    cf.field_mut().recover_invisible(&escaped);
+    (chain_score, chain_frame)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vanish_single_chain() {
+        let mut cf = CoreField::from_str(concat!(
+            "G.....", // 10
+            "Y.....", // 9
+            "GR...B", // 8
+            "RR...B", // 7
+            "GRR..Y", // 6
+            "GGRY.Y", // 5
+            "YYYBGG", // 4
+            "GRBGYG", // 3
+            "GGRBBY", // 2
+            "RRBYYG"  // 1
+        ));
+
+        let (score, frame) = vanish_single_chain(&mut cf, 1);
+        assert_eq!(score, 180);
+        assert_eq!(frame, 80);
+
+        let cf_expected = CoreField::from_str(concat!(
+            "G.....", // 9
+            "Y....B", // 8
+            "G....B", // 7
+            "G....Y", // 6
+            "GG.Y.Y", // 5
+            "YYYBGG", // 4
+            "GRBGYG", // 3
+            "GGRBBY", // 2
+            "RRBYYG"  // 1
+        ));
+        assert_eq!(cf, cf_expected);
+    }
+}

@@ -16,7 +16,7 @@ struct Opts {
     ai_1p: String,
 
     /// AI の名前（2P）
-    #[clap(long, default_value = "BeamSearchAI")]
+    #[clap(long, default_value = "RandomAI")]
     ai_2p: String,
 
     /// 何本先取か

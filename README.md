@@ -8,6 +8,9 @@ $ cargo run --release -p ghoti-simulator --bin cli_1p [-- --help]
 
 # 2人対戦
 $ cargo run --release -p ghoti-simulator --bin cli_2p [-- --help]
+
+# 棋譜を見る (WIP)
+$ cargo run --release -p ghoti-simulator --bin replay_kifus
 ```
 
 <p align="center">
