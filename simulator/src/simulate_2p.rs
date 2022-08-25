@@ -121,6 +121,8 @@ pub fn simulate_2p(
                     player_state_myself.tumo_index += 1;
                     player_state_myself.set_seq(visible_tumos);
                     player_state_myself.frame = event.frame;
+                    // NOTE: 1 連鎖目が vanish で消えるのでそこの帳尻合わせ
+                    player_state_myself.current_chain += 1;
                 }
 
                 // ぷよを置いた後の盤面を push
@@ -129,7 +131,7 @@ pub fn simulate_2p(
                 // 連鎖が発生したら、盤面・フレーム・おじゃまを更新
                 let (chain_score, chain_frame) = vanish_single_chain(
                     &mut player_state_myself.field,
-                    player_state_myself.current_chain + 1,
+                    player_state_myself.current_chain,
                 );
                 if chain_score != 0 {
                     // おじゃまを 1 連鎖分処理
