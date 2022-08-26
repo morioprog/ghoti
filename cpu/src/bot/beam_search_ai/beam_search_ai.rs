@@ -63,7 +63,7 @@ impl AI for BeamSearchAI {
 
             // 1P 発火のための最後のツモを引くまでのフレーム数
             // TODO: magic number (24)
-            let _frame_1p_chain_start = player_state_1p.frame + 24 + state.frame_controll;
+            let _frame_1p_chain_start = player_state_1p.frame + 24 + state.frame_control;
 
             // TODO: 凝視による発火判断
             return plan.score() >= 70000 || (plan.chain() <= 3 && plan.field().is_zenkeshi());
@@ -157,7 +157,7 @@ struct State {
     eval_score: i32,
     plan: Option<Plan>,
     /// 発火時のツモを置くまでに必要なフレーム数
-    frame_controll: usize,
+    frame_control: usize,
     /// そのツモを置くまで or 連鎖が終わり、相手にお邪魔が降るまでのフレーム数
     frame_chain: usize,
 }
@@ -168,7 +168,7 @@ impl State {
             field: CoreField::new(),
             decisions: vec![],
             eval_score: 0_i32,
-            frame_controll: 0_usize,
+            frame_control: 0_usize,
             frame_chain: 0_usize,
             plan: None,
         }
@@ -185,7 +185,7 @@ impl State {
             field: plan.field().clone(),
             decisions,
             eval_score: eval_score,
-            frame_controll: frame_margin + plan.frames_to_ignite() + plan.last_drop_frames(),
+            frame_control: frame_margin + plan.frames_to_ignite() + plan.last_drop_frames(),
             frame_chain: frame_margin + plan.total_frames(),
             plan: Some(plan.clone()),
         }
@@ -198,14 +198,14 @@ impl State {
         // 発火した連鎖の点数
         eval_score: i32,
         // 発火時のツモ以外の操作に必要なフレーム数の総和（本来の定義とは異なることに注意）
-        frame_controll: usize,
+        frame_control: usize,
     ) -> Self {
         State {
             field: plan.field().clone(),
             decisions,
             eval_score,
-            frame_controll,
-            frame_chain: frame_controll + plan.total_frames(),
+            frame_control,
+            frame_chain: frame_control + plan.total_frames(),
             plan: Some(plan.clone()),
         }
     }
@@ -216,7 +216,7 @@ impl State {
             field: field.clone(),
             decisions: vec![],
             eval_score: 0_i32,
-            frame_controll: 0_usize,
+            frame_control: 0_usize,
             frame_chain: 0_usize,
             plan: None,
         }
@@ -251,7 +251,7 @@ fn generate_next_states(
                 plan,
                 ds.clone(),
                 plan.score() as i32,
-                cur_state.frame_controll,
+                cur_state.frame_control,
             ))
         }
 
@@ -259,7 +259,7 @@ fn generate_next_states(
             plan,
             ds.clone(),
             evaluator.evaluate(plan),
-            cur_state.frame_controll,
+            cur_state.frame_control,
         ));
     });
 }
@@ -347,7 +347,7 @@ where
                 fire.eval_score,
                 fire.first_decision().unwrap().axis_x(),
                 fire.first_decision().unwrap().rot(),
-                fire.frame_controll,
+                fire.frame_control,
                 fire.frame_chain,
             ),
             start.elapsed(),
