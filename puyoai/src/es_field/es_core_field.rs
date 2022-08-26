@@ -11,6 +11,7 @@ use crate::es_frame;
 
 pub trait EsCoreField {
     fn es_simulate(&mut self) -> RensaResult;
+    fn es_simulate_from_middle(&mut self, current_chain: usize) -> RensaResult;
     fn es_frames_to_drop_next(&self, decision: &Decision) -> usize;
     fn es_drop_ojama(&mut self, ojama: usize, seed: Option<u8>) -> usize;
 }
@@ -18,6 +19,14 @@ pub trait EsCoreField {
 impl EsCoreField for CoreField {
     fn es_simulate(&mut self) -> RensaResult {
         let result = self.field_mut().es_simulate();
+
+        self.update_height();
+
+        result
+    }
+
+    fn es_simulate_from_middle(&mut self, current_chain: usize) -> RensaResult {
+        let result = self.field_mut().es_simulate_from_middle(current_chain);
 
         self.update_height();
 
