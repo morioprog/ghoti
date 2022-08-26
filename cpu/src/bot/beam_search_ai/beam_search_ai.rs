@@ -343,12 +343,8 @@ where
         return AIDecision::new(
             fire.decisions.clone(),
             format!(
-                "> fire score\n {:5}\n ({}, {})\n {:4} F -> {:4} F",
-                fire.eval_score,
-                fire.first_decision().unwrap().axis_x(),
-                fire.first_decision().unwrap().rot(),
-                fire.frame_control,
-                fire.frame_chain,
+                "fire: {:6}\n{:4} F -> {:4} F",
+                fire.eval_score, fire.frame_control, fire.frame_chain,
             ),
             start.elapsed(),
         );
@@ -357,12 +353,7 @@ where
     if state_v[0].first_decision().is_some() {
         return AIDecision::new(
             state_v[0].decisions.clone(),
-            format!(
-                "> eval score\n {:5}\n ({}, {})",
-                state_v[0].eval_score,
-                state_v[0].first_decision().unwrap().axis_x(),
-                state_v[0].first_decision().unwrap().rot(),
-            ),
+            format!("eval: {:6}", state_v[0].eval_score),
             start.elapsed(),
         );
     }
@@ -370,7 +361,7 @@ where
     // どうしようもないので自殺
     return AIDecision::new(
         vec![Decision::new(3, 0)],
-        format!("> muri...\n\n (3, 0)"),
+        format!("muri..."),
         start.elapsed(),
     );
 }
