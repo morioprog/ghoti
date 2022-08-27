@@ -2,7 +2,8 @@ use std::{sync::mpsc, thread, time::Instant, vec::Vec};
 
 use puyoai::{
     decision::Decision,
-    field::CoreField,
+    es_field::EsCoreField,
+    field::{self, CoreField},
     kumipuyo::{kumipuyo_seq::generate_random_puyocolor_sequence, Kumipuyo},
     plan::Plan,
 };
@@ -57,15 +58,96 @@ impl AI for BeamSearchAI {
     ) -> AIDecision {
         let start = Instant::now();
 
+        // 相手の連鎖状況を事前に計算
+        let (rensa_result_2p, cf_after_chain_2p) = match player_state_2p.clone() {
+            Some(state) => {
+                let mut cf = state.field.clone();
+                let rensa_result_2p = cf.es_simulate_from_middle(state.current_chain);
+                (Some(rensa_result_2p), Some(cf))
+            }
+            None => (None, None),
+        };
+
         // NOTE: ここで渡される state は、`State::from_plan_for_fire` から返されたもの
-        let fire_condition = move |state: &State, _player_state_2p: &Option<PlayerState>| -> bool {
+        let third_row_height_1p = player_state_1p.field.height(3);
+        let fire_condition = move |state: &State, player_state_2p: &Option<PlayerState>| -> bool {
             let plan = state.clone().plan.unwrap();
+            let ojama_from_1p_chain = (plan.score() + player_state_1p.carry_over) / 70;
 
-            // 1P 発火のための最後のツモを引くまでのフレーム数
-            // TODO: magic number (24)
-            let _frame_1p_chain_start = player_state_1p.frame + 24 + state.frame_control;
+            // 凝視による発火判断
+            if let Some(player_state_2p) = player_state_2p {
+                let rensa_result_2p = rensa_result_2p.clone().unwrap();
+                let cf_after_chain_2p = cf_after_chain_2p.clone().unwrap();
 
-            // TODO: 凝視による発火判断
+                // 1P 発火のための最後のツモを引くまでのフレーム数
+                // TODO: magic number (24)
+                let frame_1p_chain_start = player_state_1p.frame + 24 + state.frame_control;
+                // 2P 連鎖終了までのフレーム数
+                let frame_2p_chain_finish = player_state_2p.frame + rensa_result_2p.frame;
+                // そもそも発火が間に合わない
+                if frame_1p_chain_start > frame_2p_chain_finish {
+                    return false;
+                }
+
+                // 降る予定のおじゃまぷよ（正なら自分に、負なら相手に）
+                let ojama: isize = {
+                    let ojama_sum_1p = player_state_1p.fixed_ojama + player_state_1p.pending_ojama;
+                    let ojama_sum_2p = player_state_2p.fixed_ojama + player_state_2p.pending_ojama;
+                    let ojama_from_2p_chain = if player_state_2p.current_chain > 0 {
+                        (rensa_result_2p.score + player_state_2p.carry_over) / 70
+                    } else {
+                        0
+                    };
+
+                    (ojama_sum_1p + ojama_from_2p_chain) as isize - ojama_sum_2p as isize
+                };
+
+                // 相手が何も発火していない
+                if rensa_result_2p.chain == 0 {
+                    if plan.field().height(3) >= 8
+                        && (plan.score() + player_state_1p.carry_over) >= field::WIDTH * 70
+                        && plan.chain() <= 2
+                    {
+                        return true;
+                    }
+                }
+
+                // 3 列目が埋まる可能性がある
+                let estimated_third_row_height = third_row_height_1p
+                    + ((ojama.max(0) as usize + field::WIDTH - 1) / field::WIDTH);
+                if ojama > 0 && estimated_third_row_height >= 12 {
+                    return ojama_from_1p_chain >= ojama as usize;
+                }
+
+                // 自分の盤面に 3 つ以上降る予定の場合
+                if ojama >= 3 {
+                    let ojama = ojama as usize;
+
+                    if rensa_result_2p.chain <= 3 {
+                        if ojama > field::WIDTH {
+                            // 1段以下に軽減する
+                            return ojama_from_1p_chain + field::WIDTH >= ojama;
+                        }
+                        if ojama >= field::WIDTH * 4 {
+                            let average_height_2p: usize =
+                                cf_after_chain_2p.height_array().iter().sum::<i16>() as usize
+                                    / field::WIDTH;
+                            // 相手の連鎖発火後に 5 段以上残ってたら副砲だと判断
+                            if average_height_2p >= 5 {
+                                // 使いすぎを抑制（多くても赤玉 3 個に制限する）
+                                // TODO: 使いすぎないと返せない場合がありうる
+                                return ojama_from_1p_chain + field::WIDTH >= ojama
+                                    && ojama_from_1p_chain <= ojama + field::WIDTH * 5 * 3;
+                            }
+                        }
+                    }
+
+                    // TODO: 相手のセカンドを考慮する
+                    return ojama_from_1p_chain >= ojama;
+                }
+            }
+
+            // 飽和 or 全消し
             return plan.score() >= 70000 || (plan.chain() <= 3 && plan.field().is_zenkeshi());
         };
 
@@ -335,6 +417,7 @@ where
     }
 
     // 発火すべきものがあれば、その中で一番点数が高いものを選んでいる
+    // TODO: 本線なら点数が最大のものでよいが、副砲ならそうではないはず？
     if let Some(fire) = fired_v
         .iter()
         .filter(|f| fire_condition(f, player_state_2p))
