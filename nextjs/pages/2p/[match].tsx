@@ -63,7 +63,13 @@ const MatchDetail: NextPage<StaticProps> = ({ infos, json_data }) => {
     if (eventIndex === eventLength - 1) {
       stopAutoPlay();
     }
-  }, [selectedIndex, eventIndex]);
+  }, [
+    selectedIndex,
+    eventIndex,
+    autoPlayStatus,
+    json_data.json_matches,
+    stopAutoPlay,
+  ]);
 
   json_data.json_matches = json_data.json_matches.map((json_match) => {
     // pfen文字列を盤面に変換する
