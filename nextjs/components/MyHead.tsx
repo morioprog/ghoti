@@ -14,11 +14,6 @@ const MyHead: NextPage<MyHeadProps> = ({ title }) => {
 
   return (
     <Head>
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/icon?family=Material+Icons"
-      ></link>
-      <link rel="icon" href="/favicon.ico" />
       <title>{title}</title>
     </Head>
   );
