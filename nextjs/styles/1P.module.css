@@ -1,0 +1,49 @@
+.container {
+  min-height: 100vh;
+  padding: 0 0.5rem;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.title {
+  margin: 48px 0;
+  font-size: 2rem;
+  text-align: center;
+}
+
+.linkname {
+  padding: 0.1em 0.25em;
+  background-color: #e7edf3;
+  border-radius: 3px;
+  border: solid 1px #d6dde4;
+}
+
+.linkname:hover {
+  text-decoration: underline solid 3px;
+}
+
+.table {
+  width: 50%;
+  margin-bottom: 64px;
+}
+
+@media only screen and (max-width: 1200px) {
+  .table {
+    width: 90%;
+  }
+}
+
+@media only screen and (max-width: 900px) {
+  .title {
+    font-size: 1.7rem;
+  }
+}
+
+@media only screen and (max-width: 600px) {
+  .table {
+    width: 100%;
+  }
+}

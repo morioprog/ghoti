@@ -1,0 +1,61 @@
+.puyo {
+  background-image: url(../public/puyo_sozai.png),
+    url(../public/puyo_background.png);
+  display: inline-block;
+  height: 32px;
+  width: 32px;
+  vertical-align: middle;
+  background-position-x: 0px;
+}
+
+.without_background {
+  background-image: url(../public/puyo_sozai.png);
+}
+
+.red {
+  background-position-x: 0px;
+}
+.green {
+  background-position-x: -32px;
+}
+.blue {
+  background-position-x: -64px;
+}
+.yellow {
+  background-position-x: -96px;
+}
+.purple {
+  background-position-x: -128px;
+}
+
+.red_vanishing {
+  background-position: -160px -160px;
+}
+.green_vanishing {
+  background-position: -160px -192px;
+}
+.blue_vanishing {
+  background-position: -160px -224px;
+}
+.yellow_vanishing {
+  background-position: -160px -256px;
+}
+.purple_vanishing {
+  background-position: -160px -288px;
+}
+
+.wall {
+  background-position: -160px 0px;
+}
+.background {
+  background-position: -160px -32px;
+}
+.ojama {
+  background-position: -160px -64px;
+}
+.kata {
+  background-position: -160px -128px;
+}
+.empty {
+  background-position: -160px -320px;
+}

@@ -1,0 +1,48 @@
+.button_group {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  height: 32px;
+}
+
+.score_label {
+  display: flex;
+  justify-content: center;
+  font-family: monospace;
+  font-size: 24px;
+}
+
+.match_container {
+  display: flex;
+  gap: 32px;
+}
+
+@media only screen and (max-width: 700px) {
+  .match_container {
+    zoom: 0.9;
+  }
+}
+
+@media only screen and (max-width: 600px) {
+  .match_container {
+    zoom: 0.75;
+  }
+}
+
+@media only screen and (max-width: 500px) {
+  .match_container {
+    zoom: 0.65;
+  }
+}
+
+@media only screen and (max-width: 450px) {
+  .match_container {
+    zoom: 0.6;
+  }
+}
+
+@media only screen and (max-width: 400px) {
+  .match_container {
+    zoom: 0.5;
+  }
+}
