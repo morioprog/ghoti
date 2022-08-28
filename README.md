@@ -2,6 +2,8 @@
     ghoti
 </h1>
 
+[![Rust](https://github.com/morioprog/ghoti/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/morioprog/ghoti/actions/workflows/rust.yml)
+
 ```sh
 # とこぷよ
 $ cargo run --release -p ghoti-simulator --bin cli_1p [-- --help]
