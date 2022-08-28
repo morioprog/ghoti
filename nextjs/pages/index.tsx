@@ -9,7 +9,7 @@ const Home = () => (
     <div className={styles.container}>
       <main className={styles.main}>
         <h1 className={styles.title}>
-          Welcome to <a href="https://ja.wikipedia.org/wiki/Ghoti">ghoti!</a>🐟
+          Welcome to <a href="https://github.com/morioprog/ghoti">ghoti!</a>🐟
         </h1>
 
         <p className={styles.description}>
