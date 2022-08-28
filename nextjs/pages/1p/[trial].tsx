@@ -68,7 +68,14 @@ const TrialDetail: NextPage<StaticProps> = ({ infos, games }) => {
     if (tumoIndex === tumoLength - 1 && frameIndex === frameLength - 1) {
       stopAutoPlay();
     }
-  }, [selectedIndex, tumoIndex, frameIndex]);
+  }, [
+    selectedIndex,
+    tumoIndex,
+    frameIndex,
+    autoPlayStatus,
+    games,
+    stopAutoPlay,
+  ]);
 
   // `boards` を準備する
   games = games.map((game, j) => {
