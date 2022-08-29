@@ -1,0 +1,9 @@
+{
+  "visible_tumos": 2,
+  "openings": {
+    "AAAA": [3, 2],
+    "AAAB": [2, 3],
+    "AAAAAA": [1, 2],
+    "AAAABB": [3, 2]
+  }
+}
