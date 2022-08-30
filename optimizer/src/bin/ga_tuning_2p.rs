@@ -45,18 +45,6 @@ struct Opts {
     /// 何スレッドでシミュレーションするか
     #[clap(long, default_value = "12")]
     parallel: usize,
-
-    /// ビームサーチの深さ
-    #[clap(long, default_value = "10")]
-    beam_depth: usize,
-
-    /// ビームサーチの幅
-    #[clap(long, default_value = "10")]
-    beam_width: usize,
-
-    /// ビームサーチにおけるモンテカルロ法の回数
-    #[clap(long, default_value = "1")]
-    beam_parallel: usize,
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -91,18 +79,8 @@ fn main() -> Result<(), std::io::Error> {
             };
 
             let mut logger: Box<dyn Logger> = Box::new(NullLogger::new("", None).unwrap());
-            let ai_1p: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(
-                p1_e,
-                opts.beam_depth,
-                opts.beam_width,
-                opts.beam_parallel,
-            ));
-            let ai_2p: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(
-                p2_e,
-                opts.beam_depth,
-                opts.beam_width,
-                opts.beam_parallel,
-            ));
+            let ai_1p: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(p1_e));
+            let ai_2p: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(p2_e));
             let simulate_result_2p = simulate_2p(
                 &mut logger,
                 &ai_1p,
@@ -257,16 +235,9 @@ fn main() -> Result<(), std::io::Error> {
             let mut logger: Box<dyn Logger> = Box::new(NullLogger::new("", None).unwrap());
             let ai_strongest: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(
                 population.members[results[0].0].clone(),
-                opts.beam_depth,
-                opts.beam_width,
-                opts.beam_parallel,
             ));
-            let ai_baseline: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(
-                Evaluator::default(),
-                opts.beam_depth,
-                opts.beam_width,
-                opts.beam_parallel,
-            ));
+            let ai_baseline: Box<dyn AI> =
+                Box::new(BeamSearchAI::new_customize(Evaluator::default()));
             let simulate_result_with_baseline = simulate_2p(
                 &mut logger,
                 &ai_strongest,

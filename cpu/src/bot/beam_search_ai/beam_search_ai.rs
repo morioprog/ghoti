@@ -13,27 +13,11 @@ use crate::{bot::*, evaluator::Evaluator};
 pub struct BeamSearchAI {
     /// 盤面の評価器
     evaluator: Evaluator,
-    /// ビームサーチの深さ
-    depth: usize,
-    /// ビーム幅
-    width: usize,
-    /// モンテカルロを何並列でするか
-    parallel: usize,
 }
 
 impl BeamSearchAI {
-    pub fn new_customize(
-        evaluator: Evaluator,
-        depth: usize,
-        width: usize,
-        parallel: usize,
-    ) -> Self {
-        BeamSearchAI {
-            evaluator,
-            depth,
-            width,
-            parallel,
-        }
+    pub fn new_customize(evaluator: Evaluator) -> Self {
+        BeamSearchAI { evaluator }
     }
 }
 
@@ -41,9 +25,6 @@ impl AI for BeamSearchAI {
     fn new() -> Self {
         BeamSearchAI {
             evaluator: Evaluator::default(),
-            depth: 30,
-            width: 100,
-            parallel: 20,
         }
     }
 
@@ -55,6 +36,21 @@ impl AI for BeamSearchAI {
         &self,
         player_state_1p: PlayerState,
         player_state_2p: Option<PlayerState>,
+        _think_frame: Option<usize>,
+    ) -> AIDecision {
+        // TODO: change depth/width depending on `think_frame`
+        self.think_internal(player_state_1p, player_state_2p, 10, 10, 20)
+    }
+}
+
+impl BeamSearchAI {
+    fn think_internal(
+        &self,
+        player_state_1p: PlayerState,
+        player_state_2p: Option<PlayerState>,
+        depth: usize,
+        width: usize,
+        parallel: usize,
     ) -> AIDecision {
         let start = Instant::now();
 
@@ -157,15 +153,15 @@ impl AI for BeamSearchAI {
         let (tx, rx): (mpsc::Sender<AIDecision>, mpsc::Receiver<AIDecision>) = mpsc::channel();
 
         // ツモが十分に渡されてたら、モンテカルロをする必要がない
-        let parallel = if player_state_1p.seq.len() < self.depth {
-            self.parallel
+        let parallel = if player_state_1p.seq.len() < depth {
+            parallel
         } else {
             1
         };
 
         for _ in 0..parallel {
-            let depth_c = self.depth;
-            let width_c = self.width;
+            let depth_c = depth;
+            let width_c = width;
             let tx_c = tx.clone();
             let player_state_1p_c = player_state_1p.clone();
             let player_state_2p_c = player_state_2p.clone();

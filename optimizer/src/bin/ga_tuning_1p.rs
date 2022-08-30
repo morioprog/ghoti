@@ -53,18 +53,6 @@ struct Opts {
     /// 何スレッドでシミュレーションするか
     #[clap(long, default_value = "1")]
     parallel: usize,
-
-    /// ビームサーチの深さ
-    #[clap(long, default_value = "10")]
-    beam_depth: usize,
-
-    /// ビームサーチの幅
-    #[clap(long, default_value = "10")]
-    beam_width: usize,
-
-    /// ビームサーチにおけるモンテカルロ法の回数
-    #[clap(long, default_value = "10")]
-    beam_parallel: usize,
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -104,12 +92,7 @@ fn main() -> Result<(), std::io::Error> {
             };
 
             let mut logger: Box<dyn Logger> = Box::new(NullLogger::new("", None).unwrap());
-            let ai: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(
-                ai_eval,
-                opts.beam_depth,
-                opts.beam_width,
-                opts.beam_parallel,
-            ));
+            let ai: Box<dyn AI> = Box::new(BeamSearchAI::new_customize(ai_eval));
 
             let mut res = 0;
             let mut best: Option<SimulateResult1P> = None;

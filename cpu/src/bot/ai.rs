@@ -11,6 +11,7 @@ pub trait AI {
         &self,
         player_state_1p: PlayerState,
         player_state_2p: Option<PlayerState>,
+        think_frame: Option<usize>,
     ) -> AIDecision;
 }
 

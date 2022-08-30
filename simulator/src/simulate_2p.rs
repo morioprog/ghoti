@@ -228,9 +228,11 @@ pub fn simulate_2p(
             }
 
             // AIで思考する
+            // TODO: 引数で `think_frame` を渡す？
             let ai_decision = ai.think(
                 player_state_myself.clone(),
                 Some(player_state_opponent.clone()),
+                None,
             );
             let decision = ai_decision.decisions[0].clone();
             events.push(Event::new(
