@@ -36,10 +36,17 @@ impl AI for BeamSearchAI {
         &self,
         player_state_1p: PlayerState,
         player_state_2p: Option<PlayerState>,
-        _think_frame: Option<usize>,
+        think_frame: Option<usize>,
     ) -> AIDecision {
-        // TODO: change depth/width depending on `think_frame`
-        self.think_internal(player_state_1p, player_state_2p, 10, 10, 20)
+        let think_frame = think_frame.unwrap_or(0);
+        let (depth, width) = if think_frame <= 2 {
+            (20, 20)
+        } else if think_frame <= 8 {
+            (30, 60)
+        } else {
+            (40, 140)
+        };
+        self.think_internal(player_state_1p, player_state_2p, depth, width, 20)
     }
 }
 
