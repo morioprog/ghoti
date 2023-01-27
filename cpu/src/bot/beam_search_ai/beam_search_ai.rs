@@ -77,19 +77,27 @@ impl BeamSearchAI {
             let plan = state.clone().plan.unwrap();
             let ojama_from_1p_chain = (plan.score() + player_state_1p.carry_over) / 70;
 
+            // 序盤（最初の12秒）の全消し
+            if player_state_1p.frame <= 60 * 12 && plan.chain() <= 3 && plan.field().is_zenkeshi() {
+                return true;
+            }
+
             // 凝視による発火判断
             if let Some(player_state_2p) = player_state_2p {
                 let rensa_result_2p = rensa_result_2p.clone().unwrap();
                 let cf_after_chain_2p = cf_after_chain_2p.clone().unwrap();
 
-                // 1P 発火のための最後のツモを引くまでのフレーム数
-                // TODO: magic number (24)
-                let frame_1p_chain_start = player_state_1p.frame + 24 + state.frame_control;
-                // 2P 連鎖終了までのフレーム数
-                let frame_2p_chain_finish = player_state_2p.frame + rensa_result_2p.frame;
-                // そもそも発火が間に合わない
-                if frame_1p_chain_start > frame_2p_chain_finish {
-                    return false;
+                // 2Pが発火している場合
+                if rensa_result_2p.score > 0 {
+                    // 1P 発火のための最後のツモを引くまでのフレーム数
+                    // TODO: magic number (24)
+                    let frame_1p_chain_start = player_state_1p.frame + 24 + state.frame_control;
+                    // 2P 連鎖終了までのフレーム数
+                    let frame_2p_chain_finish = player_state_2p.frame + rensa_result_2p.frame;
+                    // そもそも発火が間に合わない
+                    if frame_1p_chain_start > frame_2p_chain_finish {
+                        return false;
+                    }
                 }
 
                 // 降る予定のおじゃまぷよ（正なら自分に、負なら相手に）
@@ -106,7 +114,8 @@ impl BeamSearchAI {
                 };
 
                 // 相手が何も発火していない
-                if rensa_result_2p.chain == 0 {
+                if rensa_result_2p.score == 0 {
+                    // 相手が上部まで行ってたら潰そうとする（1列以上・2連鎖以下）
                     if plan.field().height(3) >= 8
                         && (plan.score() + player_state_1p.carry_over) >= field::WIDTH * 70
                         && plan.chain() <= 2
@@ -115,7 +124,7 @@ impl BeamSearchAI {
                     }
                 }
 
-                // 3 列目が埋まる可能性がある
+                // 自陣の 3 列目が埋まる可能性があるなら相殺をがんばる
                 let estimated_third_row_height = third_row_height_1p
                     + ((ojama.max(0) as usize + field::WIDTH - 1) / field::WIDTH);
                 if ojama > 0 && estimated_third_row_height >= 12 {
@@ -127,10 +136,12 @@ impl BeamSearchAI {
                     let ojama = ojama as usize;
 
                     if rensa_result_2p.chain <= 3 {
+                        // 1列以上のおじゃま
                         if ojama > field::WIDTH {
                             // 1段以下に軽減する
                             return ojama_from_1p_chain + field::WIDTH >= ojama;
                         }
+                        // 4列以上のおじゃま
                         if ojama >= field::WIDTH * 4 {
                             let average_height_2p: usize =
                                 cf_after_chain_2p.height_array().iter().sum::<i16>() as usize
@@ -150,8 +161,8 @@ impl BeamSearchAI {
                 }
             }
 
-            // 飽和 or 全消し
-            return plan.score() >= 70000 || (plan.chain() <= 3 && plan.field().is_zenkeshi());
+            // 飽和
+            return plan.score() >= 80000;
         };
 
         // TODO: 序盤のテンプレ化
