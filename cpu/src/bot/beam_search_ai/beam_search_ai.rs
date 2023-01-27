@@ -1,11 +1,15 @@
 use std::{sync::mpsc, thread, time::Instant, vec::Vec};
 
 use puyoai::{
+    color::Color,
+    column_puyo_list::ColumnPuyoList,
     decision::Decision,
     es_field::EsCoreField,
     field::{self, CoreField},
     kumipuyo::{kumipuyo_seq::generate_random_puyocolor_sequence, Kumipuyo},
     plan::Plan,
+    rensa_detector::{detector::detect_by_drop, PurposeForFindingRensa},
+    rensa_result::RensaResult,
 };
 
 use crate::{bot::*, evaluator::Evaluator};
@@ -39,6 +43,7 @@ impl AI for BeamSearchAI {
         think_frame: Option<usize>,
     ) -> AIDecision {
         let think_frame = think_frame.unwrap_or(0);
+        // TODO: チューニングする
         let (depth, width) = if think_frame <= 2 {
             (20, 20)
         } else if think_frame <= 8 {
@@ -62,14 +67,33 @@ impl BeamSearchAI {
         let start = Instant::now();
 
         // 相手の連鎖状況を事前に計算
-        let (rensa_result_2p, cf_after_chain_2p) = match player_state_2p.clone() {
-            Some(state) => {
-                let mut cf = state.field.clone();
-                let rensa_result_2p = cf.es_simulate_from_middle(state.current_chain);
-                (Some(rensa_result_2p), Some(cf))
-            }
-            None => (None, None),
-        };
+        let (rensa_result_2p, cf_after_chain_2p, estimated_rensa_results_2p) =
+            match player_state_2p.clone() {
+                Some(state) => {
+                    let mut cf = state.field.clone();
+                    let rensa_result_2p = cf.es_simulate_from_middle(state.current_chain);
+
+                    let mut estimated_rensa_results_2p: Vec<RensaResult> = vec![];
+                    let callback = |mut actual: CoreField, _cpl: &ColumnPuyoList| {
+                        estimated_rensa_results_2p.push(actual.es_simulate());
+                    };
+                    detect_by_drop(
+                        &cf,
+                        &[false; 8],
+                        PurposeForFindingRensa::ForFire,
+                        3,
+                        12,
+                        callback,
+                    );
+
+                    (
+                        Some(rensa_result_2p),
+                        Some(cf),
+                        Some(estimated_rensa_results_2p),
+                    )
+                }
+                None => (None, None, None),
+            };
 
         // NOTE: ここで渡される state は、`State::from_plan_for_fire` から返されたもの
         let third_row_height_1p = player_state_1p.field.height(3);
@@ -86,6 +110,7 @@ impl BeamSearchAI {
             if let Some(player_state_2p) = player_state_2p {
                 let rensa_result_2p = rensa_result_2p.clone().unwrap();
                 let cf_after_chain_2p = cf_after_chain_2p.clone().unwrap();
+                let estimated_rensa_results_2p = estimated_rensa_results_2p.clone().unwrap();
 
                 // 2Pが発火している場合
                 if rensa_result_2p.score > 0 {
@@ -97,6 +122,55 @@ impl BeamSearchAI {
                     // そもそも発火が間に合わない
                     if frame_1p_chain_start > frame_2p_chain_finish {
                         return false;
+                    }
+                } else {
+                    // 潰し
+                    // - 相手の地形が平ら
+                    // - 2列以上送れそう
+                    // - 3連鎖以下
+                    // - いばら
+                    let height_array_2p = player_state_2p.field.height_array();
+                    let max_height_2p = *height_array_2p[1..7].iter().max().unwrap();
+                    let min_height_2p = *height_array_2p[1..7].iter().min().unwrap();
+                    let flat = max_height_2p - min_height_2p <= 1;
+                    let score = plan.score() + player_state_1p.carry_over;
+                    let counter = estimated_rensa_results_2p
+                        .iter()
+                        .filter(|res| res.chain <= 6 && res.score >= score)
+                        .max_by(|a, b| a.score.cmp(&b.score));
+                    if flat
+                        && min_height_2p >= 2
+                        && ((plan.chain() == 1 && score >= 9 * 70)
+                            || (plan.chain() <= 3 && counter.is_none() && score >= 12 * 70))
+                    {
+                        return true;
+                    }
+
+                    // 埋まってたら条件をゆるく
+                    let active_puyo = {
+                        let mut cnt = 0;
+                        for x in 1..=field::WIDTH {
+                            let mut had_ojama = false;
+                            for y in (1..=player_state_2p.field.height(x)).rev() {
+                                if !player_state_2p.field.color(x, y).is_normal_color() {
+                                    if had_ojama {
+                                        break;
+                                    }
+                                    had_ojama = true;
+                                } else {
+                                    had_ojama = false;
+                                }
+                                cnt += 1;
+                            }
+                        }
+                        cnt
+                    };
+                    let buried = active_puyo <= 20 && min_height_2p >= 6;
+                    if buried
+                        && ((min_height_2p >= 9 && score >= 3 * 70)
+                            || (plan.chain() <= 3 && score >= 6 * 70))
+                    {
+                        return true;
                     }
                 }
 
@@ -112,17 +186,6 @@ impl BeamSearchAI {
 
                     (ojama_sum_1p + ojama_from_2p_chain) as isize - ojama_sum_2p as isize
                 };
-
-                // 相手が何も発火していない
-                if rensa_result_2p.score == 0 {
-                    // 相手が上部まで行ってたら潰そうとする（1列以上・2連鎖以下）
-                    if plan.field().height(3) >= 8
-                        && (plan.score() + player_state_1p.carry_over) >= field::WIDTH * 70
-                        && plan.chain() <= 2
-                    {
-                        return true;
-                    }
-                }
 
                 // 自陣の 3 列目が埋まる可能性があるなら相殺をがんばる
                 let estimated_third_row_height = third_row_height_1p
@@ -159,6 +222,25 @@ impl BeamSearchAI {
                     // TODO: 相手のセカンドを考慮する
                     return ojama_from_1p_chain >= ojama;
                 }
+
+                // 先打ち（8万点以上で考慮）
+                let honsen_2p = estimated_rensa_results_2p
+                    .iter()
+                    .max_by(|a, b| a.score.cmp(&b.score))
+                    .map_or(0, |res| res.score);
+                if plan.score() < 80000 {
+                    return false;
+                }
+                if plan.score() >= 80000 && honsen_2p + 30000 <= plan.score() {
+                    return true;
+                }
+                if plan.score() >= 90000 && honsen_2p + 20000 <= plan.score() {
+                    return true;
+                }
+                if plan.score() >= 100000 && honsen_2p + 10000 <= plan.score() {
+                    return true;
+                }
+                return honsen_2p <= plan.score();
             }
 
             // 飽和
