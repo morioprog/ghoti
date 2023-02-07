@@ -12,16 +12,22 @@ use puyoai::{
     rensa_result::RensaResult,
 };
 
-use crate::{bot::*, evaluator::Evaluator};
+use crate::{bot::*, evaluator::Evaluator, opening_matcher::OpeningMatcher};
 
 pub struct BeamSearchAI {
     /// 盤面の評価器
     evaluator: Evaluator,
+    /// 序盤のテンプレ
+    opening_matcher: OpeningMatcher,
 }
 
 impl BeamSearchAI {
     pub fn new_customize(evaluator: Evaluator) -> Self {
-        BeamSearchAI { evaluator }
+        let opening_matcher = OpeningMatcher::new("opening_vis2.json").unwrap();
+        BeamSearchAI {
+            evaluator,
+            opening_matcher,
+        }
     }
 }
 
@@ -29,6 +35,7 @@ impl AI for BeamSearchAI {
     fn new() -> Self {
         BeamSearchAI {
             evaluator: Evaluator::default(),
+            opening_matcher: OpeningMatcher::new("opening_vis2.json").unwrap(),
         }
     }
 
@@ -65,6 +72,21 @@ impl BeamSearchAI {
         parallel: usize,
     ) -> AIDecision {
         let start = Instant::now();
+
+        // 最序盤のみテンプレを使う
+        if player_state_1p.tumo_index < 5 {
+            if let Some(decision) = self.opening_matcher.find_opening(
+                player_state_1p.tumo_index,
+                &player_state_1p.field,
+                &player_state_1p.seq,
+            ) {
+                return AIDecision::from_decision(
+                    &decision,
+                    format!("OpeningMatcher"),
+                    start.elapsed(),
+                );
+            }
+        }
 
         // 相手の連鎖状況を事前に計算
         let (rensa_result_2p, cf_after_chain_2p, estimated_rensa_results_2p) =
