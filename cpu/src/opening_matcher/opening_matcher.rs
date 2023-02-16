@@ -36,6 +36,7 @@ impl OpeningMatcher {
         field: &CoreField,
         seq: &Vec<Kumipuyo>,
     ) -> Option<Decision> {
+        let seq = &seq.get(0..self.opener.visible_tumos).unwrap().to_vec();
         let appeared_colors = appeared_colors(field, seq);
         let n = appeared_colors.len();
         let letters = (0..n).map(|i| (b'A' + i as u8) as char);
@@ -146,8 +147,7 @@ fn field_to_abcd(map: &HashMap<char, char>, field: &CoreField) -> String {
 
 #[derive(Debug, Deserialize)]
 struct Opener {
-    #[serde(rename = "visible_tumos")]
-    _visible_tumos: usize,
+    visible_tumos: usize,
     // TODO: serde_def::DecisionDef を使う
     openings: [HashMap<String, HashMap<String, [usize; 2]>>; 8],
 }
