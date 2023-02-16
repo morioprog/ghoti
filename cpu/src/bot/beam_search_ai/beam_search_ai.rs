@@ -269,8 +269,6 @@ impl BeamSearchAI {
             return plan.score() >= 80000;
         };
 
-        // TODO: 序盤のテンプレ化
-
         // 各スレッドの結果をまとめる
         let (tx, rx): (mpsc::Sender<AIDecision>, mpsc::Receiver<AIDecision>) = mpsc::channel();
 

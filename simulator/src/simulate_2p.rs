@@ -34,6 +34,7 @@ pub fn simulate_2p(
     ai_2p: &Box<dyn AI>,
     win_goal: usize, // 何本先取か
     visible_tumos: usize,
+    // FIXME: 序盤数手が同じになってしまう
     haipuyo_margin: Option<usize>, // Noneならランダムに、Someならその番号から順番に使う
 ) -> Result<SimulateResult2P, std::io::Error> {
     // お互いの勝利数

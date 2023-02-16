@@ -1,3 +1,6 @@
+//! 配ぷよを序盤8手の順番にソートしているため、
+//! 順番に `retrieve_haipuyo` を呼ぶと序盤の手が被る点に注意
+
 use puyoai::{
     color::{Color, PuyoColor},
     kumipuyo::Kumipuyo,
