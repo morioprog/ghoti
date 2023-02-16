@@ -51,6 +51,7 @@ struct Opts {
     elite_size: usize,
 
     /// 何スレッドでシミュレーションするか
+    /// （`visible_tumos` を `depth` と同じにしたなら増やすべき）
     #[clap(long, default_value = "1")]
     parallel: usize,
 }
@@ -102,6 +103,7 @@ fn main() -> Result<(), std::io::Error> {
                     &ai,
                     opts.visible_tumos,
                     opts.max_tumos,
+                    // FIXME: 序盤数手が同じになってしまう
                     Some((haipuyo_margin + i) % TUMO_PATTERN),
                     Some(opts.required_chain_score),
                 )
@@ -155,6 +157,7 @@ fn main() -> Result<(), std::io::Error> {
         for i in 0..opts.population_size {
             results.push((i, 0_i32));
         }
+        // TODO: プログレスバーのパッケージを使う
         for i in 0..count {
             if let Some((ai_index, res, sim_res)) = game_results.recv().unwrap() {
                 results[ai_index].1 += res as i32;

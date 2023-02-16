@@ -135,6 +135,7 @@ fn main() -> Result<(), std::io::Error> {
         for i in 0..opts.population_size {
             results.push((i, 0_i32));
         }
+        // TODO: プログレスバーのパッケージを使う
         for i in 0..count {
             if let Some((p1, p2, simulate_result_2p)) = game_results.recv().unwrap() {
                 let simulate_result_2p = simulate_result_2p?;
