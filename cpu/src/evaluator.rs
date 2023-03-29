@@ -1,4 +1,1 @@
-pub mod detect_shape;
-pub mod evaluator;
-
-pub use evaluator::Evaluator;
+pub mod pattern_matching;

@@ -1,10 +1,10 @@
 #![feature(test)]
 extern crate test;
-use ghoti_cpu::evaluator::Evaluator;
+use ghoti_cpu::evaluator::pattern_matching::Evaluator;
 use puyoai::{decision::Decision, field::CoreField, plan::Plan};
 
 #[bench]
-fn bench_evaluator(b: &mut test::Bencher) {
+fn bench_pattern_matching_evaluator(b: &mut test::Bencher) {
     let mut cf = CoreField::from_str(concat!(
         ".GY..G", // 11
         ".GGYBG", // 10

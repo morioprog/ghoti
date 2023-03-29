@@ -1,4 +1,4 @@
-use cpu::evaluator::Evaluator;
+use cpu::evaluator::pattern_matching::Evaluator;
 use rand::prelude::*;
 
 pub trait Mutateable: Default {

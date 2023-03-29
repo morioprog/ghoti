@@ -12,7 +12,7 @@ use puyoai::{
     rensa_result::RensaResult,
 };
 
-use crate::{bot::*, evaluator::Evaluator, opening_matcher::OpeningMatcher};
+use crate::{bot::*, evaluator::pattern_matching::Evaluator, opening_matcher::OpeningMatcher};
 
 pub struct BeamSearchAI {
     /// 盤面の評価器

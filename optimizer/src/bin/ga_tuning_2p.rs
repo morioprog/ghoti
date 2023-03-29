@@ -10,7 +10,7 @@ use chrono::Utc;
 use clap::Parser;
 use cpu::{
     bot::{BeamSearchAI, AI},
-    evaluator::Evaluator,
+    evaluator::pattern_matching::Evaluator,
 };
 use ghoti_optimizer::Mutateable;
 use logger::{Logger, NullLogger};
