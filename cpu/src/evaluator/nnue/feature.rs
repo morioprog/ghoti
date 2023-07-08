@@ -1,5 +1,6 @@
 // TODO: 他の特徴量も試しやすくする
 
+use onnxruntime::ndarray::Array1;
 use puyoai::{
     color::PuyoColor,
     field::{self, CoreField},
@@ -85,4 +86,14 @@ pub fn convert_board_to_feature(
         feature[i] = 1.0;
     }
     feature
+}
+
+pub fn convert_board_to_feature_ndarray(
+    cf: &CoreField,
+    next1: &Kumipuyo,
+    next2: &Kumipuyo,
+) -> Array1<f32> {
+    Array1::from_shape_fn(FEATURE_SIZE, |i| {
+        convert_board_to_feature(cf, next1, next2)[i]
+    })
 }

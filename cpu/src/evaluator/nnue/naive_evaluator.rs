@@ -75,7 +75,7 @@ mod tests {
             ));
             let next1 = Kumipuyo::new(PuyoColor::GREEN, PuyoColor::RED);
             let next2 = Kumipuyo::new(PuyoColor::RED, PuyoColor::BLUE);
-            assert!((evaluator.evaluate(&cf, &next1, &next2) - 0.12496412).abs() <= 1e-3);
+            assert!((evaluator.evaluate(&cf, &next1, &next2) - 0.125).abs() <= 1e-3);
         }
     }
 }

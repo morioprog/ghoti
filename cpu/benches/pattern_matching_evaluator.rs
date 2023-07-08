@@ -3,6 +3,9 @@ extern crate test;
 use ghoti_cpu::evaluator::pattern_matching::Evaluator;
 use puyoai::{decision::Decision, field::CoreField, plan::Plan};
 
+// 1,284 ns/iter (+/- 54)
+// 1,318 ns/iter (+/- 120)
+// 1,288 ns/iter (+/- 181)
 #[bench]
 fn bench_pattern_matching_evaluator(b: &mut test::Bencher) {
     let mut cf = CoreField::from_str(concat!(
