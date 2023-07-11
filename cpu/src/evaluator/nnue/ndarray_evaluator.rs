@@ -1,7 +1,7 @@
 use onnxruntime::ndarray::{Array1, Array2};
 use puyoai::{field::CoreField, kumipuyo::Kumipuyo};
 
-use super::{feature::*, weight::*};
+use super::{feature::*, weight_ndarray::*};
 
 pub struct NdarrayEvaluator {
     input_linear: Array2<f32>,
@@ -81,6 +81,7 @@ mod tests {
             let next1 = Kumipuyo::new(PuyoColor::GREEN, PuyoColor::RED);
             let next2 = Kumipuyo::new(PuyoColor::RED, PuyoColor::BLUE);
             assert!((evaluator.evaluate(&cf, &next1, &next2) - 0.125).abs() <= 1e-3);
+            // assert_eq!(evaluator.evaluate(&cf, &next1, &next2), 0.0);
         }
     }
 }
