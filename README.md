@@ -1,3 +1,9 @@
+<div align="center">
+    <b>Note: このリポジトリはアーカイブされています。 今後の開発は <a href="https://github.com/morioprog/nova">morioprog/nova</a> にて行います</b>:bow:
+</div>
+
+---
+
 <h1 align="center">
     ghoti
 </h1>
