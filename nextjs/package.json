@@ -15,14 +15,14 @@
     "classnames": "^2.3.2",
     "material-table": "1.69.3",
     "next": "13.4.19",
-    "react": "18.2.0",
+    "react": "18.3.1",
     "react-dom": "18.2.0",
     "react-icons": "^4.10.1"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^4.2.0",
     "@types/node": "^20.5.4",
-    "@types/react": "^18.2.21",
+    "@types/react": "^18.3.3",
     "prettier": "^3.0.2",
     "serve": "^14.2.1",
     "typescript": "^5.1.6"
